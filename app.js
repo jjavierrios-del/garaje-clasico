@@ -20,7 +20,7 @@
   const DOC_DATE_FIELD = { "ITV": "itvDate", "Seguro": "insuranceDate", "Impuesto de circulación": "taxDate" };
   const BACKUP_DAYS = 30;
 
-  const S = { cars: [], parts: [], catalog: [], logs: [], docs: [], shop: [], tab: "garage", carId: null, carTab: "maint", kind: "all", stockView: "inv", stockFilter: "all", stockCar: "all", catCar: null, q: "", allAlerts: false, ready: false, canUpload: true };
+  const S = { cars: [], parts: [], catalog: [], logs: [], docs: [], shop: [], trips: [], tab: "garage", carId: null, carTab: "maint", kind: "all", stockView: "inv", stockGroup: "cat", stockFilter: "all", stockCar: "all", catCar: null, q: "", allAlerts: false, ready: false, canUpload: true };
   // Despieces publicados en el repositorio (catalog/*.json) y piezas propias guardadas en el móvil
   let libIndex = [], libItems = [], localCat = [], libDocs = {};
 
@@ -119,11 +119,11 @@
 
   // ---------- Datos (IndexedDB, en el propio dispositivo) ----------
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  const STORES = ["cars", "parts", "catalog", "logs", "docs", "shop"];
+  const STORES = ["cars", "parts", "catalog", "logs", "docs", "shop", "trips"];
   let idbP = null;
   function idb() {
     return idbP ||= new Promise((res, rej) => {
-      const r = indexedDB.open("garaje-clasico", 2);
+      const r = indexedDB.open("garaje-clasico", 3);
       r.onupgradeneeded = () => { const d = r.result; STORES.forEach(n => d.objectStoreNames.contains(n) || d.createObjectStore(n, { keyPath: "id" })); d.objectStoreNames.contains("photos") || d.createObjectStore("photos"); };
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
@@ -158,7 +158,7 @@
     S.cars = alive(carsRaw);
     loadAll.removedCars = carsRaw.filter(c => c.deleted).map(c => c.id);
     S.parts = alive(await idbAll("parts")); localCat = await idbAll("catalog");
-    S.logs = alive(await idbAll("logs")); S.docs = alive(await idbAll("docs")); S.shop = alive(await idbAll("shop"));
+    S.logs = alive(await idbAll("logs")); S.docs = alive(await idbAll("docs")); S.shop = alive(await idbAll("shop")); S.trips = alive(await idbAll("trips"));
     await Promise.all(S.cars.map(c => blobUrlAsync(c.photoId).catch(() => "")));
     mergeCatalog();
   }
@@ -260,8 +260,38 @@
     const days = daysUntil(d);
     return { state: days < 0 ? "overdue" : days <= 30 ? "soon" : "ok", days, date: d };
   }
+  // Un clásico parado sufre: batería, neumáticos, juntas, gasolina vieja. Se avisa si lleva demasiado sin arrancar.
+  const IDLE_DAYS = 30;
+  const idleDays = (car) => car.idleOff ? 0 : num(car.idleDays, IDLE_DAYS);
+  const carTrips = (carId) => S.trips.filter(t => t.carId === carId).sort((a, b) => (b.date || "").localeCompare(a.date || "") || num(b.odo) - num(a.odo));
+  const lastRun = (car) => [car.lastRun || "", carTrips(car.id)[0]?.date || ""].sort().pop();
+  function idleStatus(car) {
+    const limit = idleDays(car), last = lastRun(car);
+    if (!last) return { state: "none", limit };
+    const since = -daysUntil(last);
+    return { state: !limit || since < limit ? "ok" : since >= limit * 2 ? "overdue" : "soon", since, last, limit };
+  }
+  const idleText = (s) => s.since === 0 ? "Arrancado hoy" : s.since === 1 ? "Arrancado ayer" : `Sin arrancar desde hace ${relDays(-s.since).replace("hace ", "")}`;
+  async function markRun(car, date = today()) {
+    const fresh = carById(car.id) || car;
+    if ((fresh.lastRun || "") >= date) { toast("Ya estaba apuntado"); return; }
+    await save("cars", fresh.id, { ...strip(fresh), lastRun: date });
+    toast(`${carName(fresh)}: arrancado hoy`);
+  }
+  // Uso del año: salidas, kilómetros, combustible y consumo aproximado
+  function tripStats(carId, year = today().slice(0, 4)) {
+    const list = carTrips(carId).filter(t => !year || (t.date || "").startsWith(year));
+    const km = list.reduce((n, t) => n + num(t.dist), 0);
+    const fuelled = list.filter(t => num(t.liters) > 0 && num(t.dist) > 0);
+    const liters = list.reduce((n, t) => n + num(t.liters), 0), cost = list.reduce((n, t) => n + num(t.fuelCost), 0);
+    const fk = fuelled.reduce((n, t) => n + num(t.dist), 0), fl = fuelled.reduce((n, t) => n + num(t.liters), 0);
+    return { count: list.length, km, liters, cost, consumo: fk > 0 ? fl / fk * 100 : 0 };
+  }
+  const euro = (n) => num(n).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   function alertsFor(car) {
     const out = [];
+    const idle = idleStatus(car);
+    if (idle.state === "soon" || idle.state === "overdue") out.push({ car, label: "Arrancarlo", state: idle.state, days: -idle.since, text: idleText(idle) + " · " + fmtDate(idle.last), run: true });
     DATE_FIELDS.forEach(([f, label]) => {
       const s = dateStatus(car, f);
       if (s && s.state !== "ok") out.push({ car, label, state: s.state, days: s.days, text: (s.days < 0 ? "venció " : "vence ") + relDays(s.days) + " · " + fmtDate(s.date) });
@@ -301,7 +331,7 @@
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   function backupNeeded() {
-    const has = S.parts.length + S.logs.length + S.docs.length + S.shop.length > 0 || S.cars.some(c => c.photoId || c.gallery?.length || c.itvDate || c.insuranceDate);
+    const has = S.parts.length + S.logs.length + S.docs.length + S.shop.length + S.trips.length > 0 || S.cars.some(c => c.photoId || c.gallery?.length || c.itvDate || c.insuranceDate);
     if (!has) return null;
     const ls = lsGet("lastSync");
     if (syncCfg() && ls && Date.now() - new Date(ls) < BACKUP_DAYS * 86400000) return null;
@@ -320,7 +350,7 @@
     S.docs.forEach(d => d.fileId && ids.add(d.fileId));
     const files = {};
     for (const id of ids) { const b = await getBlob(id); if (b) files[id] = await blobToData(b); }
-    const json = JSON.stringify({ app: "garaje-clasico", version: 2, exportado: new Date().toISOString(), coches: await idbAll("cars"), repuestos: S.parts, despiecePropio: localCat, registros: S.logs, documentos: S.docs, compra: S.shop, fotos: files });
+    const json = JSON.stringify({ app: "garaje-clasico", version: 2, exportado: new Date().toISOString(), coches: await idbAll("cars"), repuestos: S.parts, despiecePropio: localCat, registros: S.logs, documentos: S.docs, compra: S.shop, salidas: S.trips, fotos: files });
     const name = "garaje-clasico-" + today() + ".json";
     const file = new File([json], name, { type: "application/json" });
     const done = () => { lsSet("lastBackup", new Date().toISOString()); lsSet("backupSnooze", ""); render(); toast("Copia guardada"); };
@@ -342,6 +372,7 @@
       for (const l of d.registros || []) await idbPut("logs", l);
       for (const x of d.documentos || []) await idbPut("docs", x);
       for (const x of d.compra || []) await idbPut("shop", x);
+      for (const x of d.salidas || []) await idbPut("trips", x);
       for (const [id, url] of Object.entries(d.fotos || {})) await idbPut("photos", await (await fetch(url)).blob(), id);
       photoCache.clear(); photoPending.clear(); await loadAll(); closeSheet(); render();
       toast("Copia restaurada");
@@ -349,7 +380,7 @@
   }
 
   // ---------- Sincronización entre móviles (repositorio privado de GitHub) ----------
-  const SYNC_STORES = ["cars", "parts", "catalog", "logs", "docs", "shop"];
+  const SYNC_STORES = ["cars", "parts", "catalog", "logs", "docs", "shop", "trips"];
   const syncCfg = () => { try { return JSON.parse(lsGet("syncCfg") || "null"); } catch { return null; } };
   const b64encode = (str) => { const bytes = new TextEncoder().encode(str); let out = ""; for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(out); };
   const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), c => c.charCodeAt(0)));
@@ -633,6 +664,7 @@
     if (found) {
       openSheet(`<h2>${esc(found.name)}</h2>
         <p class="lead">Ya lo tienes en el almacén: quedan ${qtyFmt(num(found.qty))} ${esc(found.unit || "ud")}.</p>
+        ${found.location ? `<p class="where"><svg><use href="#i-pin"/></svg><span>Está en <b>${esc(found.location)}</b></span></p>` : ""}
         <div class="codebox"><span class="eyebrow">Código de barras</span><span class="mono">${esc(code)}</span></div>
         <div class="actions" style="flex-direction:column">
           <button class="btn primary" type="button" id="scPlus">Sumar 1 al almacén</button>
@@ -696,7 +728,7 @@
     $("#sheetBody").innerHTML = `<div class="sheet-head"><span class="grabber"></span><button class="sheet-x" type="button" data-close aria-label="Cerrar"><svg><use href="#i-x"/></svg></button></div>` + html;
     $("#sheetBody").onclick = null;
     sh.hidden = false; sc.hidden = false;
-    requestAnimationFrame(() => { sh.classList.add("on"); sc.classList.add("on"); });
+    requestAnimationFrame(() => { if (sheetOpen) { sh.classList.add("on"); sc.classList.add("on"); } });
     sh.scrollTop = 0;
   }
   function closeSheet() {
@@ -704,7 +736,7 @@
     if (history.state?.sheet) history.back(); else hideSheet();
   }
   function hideSheet() {
-    sheetOpen = false;
+    sheetOpen = false; stopDictation();
     const sh = $("#sheet"), sc = $("#scrim");
     sh.classList.remove("on"); sc.classList.remove("on");
     setTimeout(() => { if (sh.classList.contains("on")) return; sh.hidden = true; sc.hidden = true; $("#sheetBody").innerHTML = ""; }, 250);
@@ -716,9 +748,13 @@
   const field = (id, label, val, opts = {}) => {
     const cls = opts.full ? "field full" : "field";
     if (opts.options) return `<div class="${cls}"><label for="${id}">${label}</label><select id="${id}">${opts.options.map(o => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}"${String(v) === String(val ?? "") ? " selected" : ""}>${esc(t)}</option>`; }).join("")}</select></div>`;
-    if (opts.area) return `<div class="${cls}"><label for="${id}">${label}</label><textarea id="${id}">${esc(val)}</textarea></div>`;
-    return `<div class="${cls}"><label for="${id}">${label}</label><input id="${id}" ${opts.mono ? 'class="mono"' : ""} type="${opts.type || "text"}" ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""} ${opts.ph ? `placeholder="${esc(opts.ph)}"` : ""} value="${esc(val)}" autocomplete="off"></div>`;
+    if (opts.area) return `<div class="${cls}"><label for="${id}">${label}</label><div class="dictate"><textarea id="${id}"${opts.ph ? ` placeholder="${esc(opts.ph)}"` : ""}>${esc(val)}</textarea>${micBtn(id)}</div></div>`;
+    const input = `<input id="${id}" ${opts.mono ? 'class="mono"' : ""} type="${opts.type || "text"}" ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""} ${opts.ph ? `placeholder="${esc(opts.ph)}"` : ""} value="${esc(val)}" autocomplete="off"${opts.list ? ` list="${id}_list"` : ""}>`;
+    const list = opts.list?.length ? `<datalist id="${id}_list">${opts.list.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>` : "";
+    return `<div class="${cls}"><label for="${id}">${label}</label>${opts.mic ? `<div class="with-btn">${input}${micBtn(id)}</div>` : input}${list}</div>`;
   };
+  const micBtn = (id) => `<button class="mic" type="button" data-mic="${id}" aria-label="Dictar"><svg><use href="#i-mic"/></svg></button>`;
+  const locations = () => [...new Set(S.parts.map(p => (p.location || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
   const val = (id) => ($("#" + id)?.value ?? "").trim();
   const carOptions = (withGeneral = true) => [...(withGeneral ? [["", "General (varios vehículos)"]] : []), ...S.cars.map(c => [c.id, carName(c) + (c.year ? " · " + c.year : "")])];
 
@@ -764,6 +800,7 @@
       for (const l of S.logs.filter(l => l.carId === car.id)) await remove("logs", l.id);
       for (const d of S.docs.filter(d => d.carId === car.id)) { await dropBlob(d.fileId); await remove("docs", d.id); }
       for (const x of S.shop.filter(x => x.carId === car.id)) await remove("shop", x.id);
+      for (const x of S.trips.filter(x => x.carId === car.id)) await remove("trips", x.id);
       for (const ph of [car.photoId, ...(car.gallery || [])]) await dropBlob(ph);
       await remove("cars", car.id);
       S.tab = "garage"; S.carId = null; closeSheet(); toast("Vehículo borrado"); render();
@@ -787,7 +824,7 @@
         ${field("p_qty", "Cantidad", part.qty ?? 1, { inputmode: "decimal" })}
         ${field("p_unit", "Unidad", part.unit || "ud", { options: UNITS })}
         ${field("p_min", "Avisar si quedan", part.minQty ?? "", { inputmode: "decimal", ph: "0 = sin aviso" })}
-        ${field("p_loc", "Ubicación", part.location, { ph: "Estantería 2, caja azul" })}
+        ${field("p_loc", "Dónde está guardado", part.location, { ph: "Estantería 2, caja azul", list: locations() })}
         ${field("p_price", "Precio (€)", part.price, { inputmode: "decimal" })}
         ${field("p_supplier", "Proveedor", part.supplier)}
         ${field("p_notes", "Notas", part.notes, { area: true, full: true })}
@@ -879,7 +916,7 @@
         ${field("l_date", "Fecha", log.date || today(), { type: "date" })}
         ${field("l_km", "Kilómetros", log.km ?? car.km ?? "", { inputmode: "numeric" })}
         <fieldset class="field full checks"><legend>Qué se ha hecho</legend><div id="l_tasks">${taskChecks(car, log.tasks || opts.tasks || [])}</div></fieldset>
-        ${field("l_title", "Descripción", log.title ?? opts.title ?? "", { full: true, ph: "Cambio de aceite en el taller de Paco" })}
+        ${field("l_title", "Descripción", log.title ?? opts.title ?? "", { full: true, ph: "Cambio de aceite en el taller de Paco", mic: true })}
         <div class="field full"><label for="l_part">Piezas del almacén usadas</label>
           <div class="add-part"><select id="l_part">${partOptions(carId)}</select><input id="l_qty" inputmode="decimal" value="1" aria-label="Cantidad"><button class="mini brass" type="button" id="l_add">Añadir</button></div>
           <div id="l_used" class="used"></div>
@@ -921,14 +958,14 @@
   function intervalsForm(car) {
     const list = taskList(car);
     openSheet(`<h2>Intervalos</h2><p class="lead">Cada cuánto toca cada trabajo en el ${esc(carName(car))}. Pon 0 si no quieres aviso por tiempo o por kilómetros.</p>
-      <div class="intervals">${list.map(t => `<div class="iv-row"><label class="iv-on"><input type="checkbox" data-iv-on="${t.k}" ${t.off ? "" : "checked"}>${esc(t.name)}</label><div class="iv-in"><input inputmode="numeric" data-iv-m="${t.k}" value="${t.months}" aria-label="Meses"><span>meses</span><input inputmode="numeric" data-iv-km="${t.k}" value="${t.km}" aria-label="Kilómetros"><span>km</span></div></div>`).join("")}</div>
+      <div class="intervals"><div class="iv-row"><label class="iv-on"><input type="checkbox" id="idleOn" ${car.idleOff ? "" : "checked"}>Avisar si lleva parado</label><div class="iv-in"><input inputmode="numeric" id="idleDays" value="${num(car.idleDays, IDLE_DAYS)}" aria-label="Días sin arrancar"><span>días</span></div></div>${list.map(t => `<div class="iv-row"><label class="iv-on"><input type="checkbox" data-iv-on="${t.k}" ${t.off ? "" : "checked"}>${esc(t.name)}</label><div class="iv-in"><input inputmode="numeric" data-iv-m="${t.k}" value="${t.months}" aria-label="Meses"><span>meses</span><input inputmode="numeric" data-iv-km="${t.k}" value="${t.km}" aria-label="Kilómetros"><span>km</span></div></div>`).join("")}</div>
       <div class="actions"><button class="btn primary" type="button" id="saveIv">Guardar</button><button class="btn" type="button" id="resetIv">Valores de fábrica</button></div>`);
     $("#saveIv").onclick = async () => {
       const iv = {};
       list.forEach(t => { iv[t.k] = { months: Math.max(0, Math.round(num($(`[data-iv-m="${t.k}"]`).value))), km: Math.max(0, Math.round(num($(`[data-iv-km="${t.k}"]`).value))), off: !$(`[data-iv-on="${t.k}"]`).checked }; });
-      await save("cars", car.id, { ...strip(car), intervals: iv }); closeSheet(); toast("Intervalos guardados");
+      await save("cars", car.id, { ...strip(car), intervals: iv, idleDays: Math.max(1, Math.round(num($("#idleDays").value, IDLE_DAYS))), idleOff: !$("#idleOn").checked }); closeSheet(); toast("Intervalos guardados");
     };
-    $("#resetIv").onclick = async () => { const { intervals, ...rest } = strip(car); await save("cars", car.id, rest); closeSheet(); toast("Intervalos de fábrica"); };
+    $("#resetIv").onclick = async () => { const { intervals, idleDays, idleOff, ...rest } = strip(car); await save("cars", car.id, rest); closeSheet(); toast("Intervalos de fábrica"); };
   }
   function datesForm(car) {
     openSheet(`<h2>Papeles</h2><p class="lead">La app te avisa 30 días antes de cada fecha del ${esc(carName(car))}.</p>
@@ -947,6 +984,100 @@
       <form class="form">${field("km_now", "Kilómetros", car.km, { inputmode: "numeric", full: true })}</form>
       <div class="actions"><button class="btn primary" type="button" id="saveKm">Guardar</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
     $("#saveKm").onclick = async () => { await save("cars", car.id, { ...strip(car), km: val("km_now") ? String(Math.round(num(val("km_now")))) : "" }); closeSheet(); toast("Kilómetros actualizados"); };
+  }
+
+  // ---------- Dictado ----------
+  // Usa el reconocimiento de voz del navegador; si no lo hay, se abre el teclado para usar su micrófono
+  let rec = null;
+  function stopDictation() { if (rec) { try { rec.stop(); } catch {} rec = null; } document.querySelectorAll(".mic.on").forEach(b => b.classList.remove("on")); }
+  function dictate(btn) {
+    const el = $("#" + btn.dataset.mic); if (!el) return;
+    if (btn.classList.contains("on")) { stopDictation(); return; }
+    stopDictation();
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const keyboard = () => { el.focus(); toast("Pulsa el micrófono del teclado para dictar"); };
+    if (!SR) { keyboard(); return; }
+    const base = el.value.trim(), r = new SR();
+    r.lang = "es-ES"; r.interimResults = true; r.continuous = true;
+    r.onresult = (e) => {
+      const said = [...e.results].map(x => x[0].transcript.trim()).filter(Boolean).join(" ");
+      el.value = [base, base && /[.!?]$/.test(base) || !base ? cap(said) : said].filter(Boolean).join(" ");
+    };
+    r.onerror = (e) => { stopDictation(); if (e.error === "not-allowed" || e.error === "service-not-allowed") keyboard(); else if (e.error !== "aborted" && e.error !== "no-speech") toast("No te he entendido. Prueba otra vez"); };
+    r.onend = () => { if (rec === r) { rec = null; btn.classList.remove("on"); } };
+    try { r.start(); rec = r; btn.classList.add("on"); toast("Habla ahora. Toca otra vez para terminar"); } catch { keyboard(); }
+  }
+  document.addEventListener("click", (e) => { const b = e.target.closest("[data-mic]"); if (b) { e.preventDefault(); dictate(b); } });
+
+  // ---------- Salidas ----------
+  function tripForm(trip = {}, carId) {
+    const isNew = !trip.id, car = carById(trip.carId || carId) || S.cars[0] || {};
+    const startKm = isNew ? num(car.km) : num(trip.odo) - num(trip.dist);
+    openSheet(`
+      <h2>${isNew ? "Registrar salida" : "Editar salida"}</h2>
+      <p class="lead">Al volver, apunta lo que marca el cuentakilómetros: la app calcula lo recorrido y se da por arrancado.</p>
+      <form class="form" id="f">
+        ${field("t_car", "Vehículo", car.id, { options: carOptions(false), full: true })}
+        ${field("t_date", "Fecha", trip.date || today(), { type: "date" })}
+        ${field("t_odo", "Km al volver", trip.odo ?? "", { inputmode: "numeric", ph: startKm ? "Antes: " + Math.round(startKm).toLocaleString("es-ES") : "Cuentakilómetros" })}
+        ${field("t_dist", "Km recorridos", trip.dist ?? "", { inputmode: "numeric" })}
+        ${field("t_liters", "Litros repostados", trip.liters ?? "", { inputmode: "decimal", ph: "Si has echado" })}
+        ${field("t_cost", "Gasolina (€)", trip.fuelCost ?? "", { inputmode: "decimal" })}
+        ${field("t_notes", "Notas", trip.notes, { area: true, full: true, ph: "Concentración de clásicos, ruta por la sierra…" })}
+      </form>
+      <p class="note">Para el consumo, apunta los litros cuando llenes el depósito: la media es aproximada.</p>
+      <div class="actions"><button class="btn primary" type="button" id="saveTrip">Guardar</button>${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn danger" type="button" id="delTrip">Borrar</button>`}</div>`);
+    const base = () => isNew ? num(carById(val("t_car"))?.km) : startKm;
+    $("#t_odo").addEventListener("input", () => { const d = num(val("t_odo")) - base(); if (base() > 0 && d > 0) $("#t_dist").value = Math.round(d); });
+    $("#t_car").onchange = () => { const c = carById(val("t_car")); $("#t_odo").placeholder = c?.km ? "Antes: " + Math.round(num(c.km)).toLocaleString("es-ES") : "Cuentakilómetros"; };
+    $("#saveTrip").onclick = async () => {
+      const data = { carId: val("t_car"), date: val("t_date") || today(), odo: val("t_odo") ? Math.round(num(val("t_odo"))) : "", dist: val("t_dist") ? Math.round(num(val("t_dist"))) : "", liters: val("t_liters") ? num(val("t_liters")) : "", fuelCost: val("t_cost") ? num(val("t_cost")) : "", notes: val("t_notes"), createdAt: trip.createdAt };
+      if (!data.carId) { toast("Elige un vehículo"); return; }
+      $("#saveTrip").disabled = true;
+      const id = await save("trips", trip.id, data);
+      const c = carById(data.carId);
+      if (c && data.odo && data.odo > num(c.km)) await save("cars", c.id, { ...strip(c), km: String(data.odo) });
+      if (id) { closeSheet(); toast(isNew ? "Salida registrada" : "Salida actualizada"); }
+    };
+    $("#delTrip")?.addEventListener("click", () => confirmSheet("¿Borrar esta salida?", "Se quita del historial de uso.", async () => { await remove("trips", trip.id); closeSheet(); toast("Salida borrada"); }));
+  }
+
+  // ---------- Ficha en PDF ----------
+  // Se monta una página limpia y se abre la ventana de imprimir, que permite guardarla como PDF
+  function carReport(c) {
+    const q = { ...quickRef(c), ...(c.quick || {}) };
+    const logs = carLogs(c.id), trips = tripStats(c.id, ""), year = tripStats(c.id);
+    const docs = S.docs.filter(d => d.carId === c.id);
+    const spent = logs.reduce((n, l) => n + num(l.cost), 0);
+    const row = (k, v) => v ? `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>` : "";
+    const photo = photoUrl(c);
+    return `<article class="report">
+      <header><div><p class="r-kicker">${esc(c.make)}</p><h1>${esc(c.model)}</h1>${c.version ? `<p class="r-sub">${esc(c.version)}</p>` : ""}</div>${c.plate ? `<span class="r-plate">${esc(c.plate)}</span>` : ""}</header>
+      ${photo ? `<img class="r-photo" src="${esc(photo)}" alt="">` : ""}
+      <h2>Datos del vehículo</h2>
+      <table>${row("Año", c.year)}${row("Matrícula", c.plate)}${row("Bastidor", c.vin)}${row("Motor", c.engine)}${row("Color", c.color)}${row("Kilómetros", c.km ? kmFmt(c.km) : "")}</table>
+      ${DATE_FIELDS.some(([f]) => c[f]) || c.insurer ? `<h2>Papeles</h2><table>${DATE_FIELDS.map(([f, l]) => row(l, c[f] ? fmtDate(c[f]) : "")).join("")}${row("Compañía de seguros", c.insurer)}</table>` : ""}
+      ${QUICK.some(([k]) => q[k]) ? `<h2>Datos de mantenimiento</h2><table>${QUICK.map(([k, l]) => row(l, q[k])).join("")}</table>` : ""}
+      <h2>Estado del mantenimiento</h2>
+      <table class="r-grid"><thead><tr><th>Trabajo</th><th>Último</th><th>Próximo</th></tr></thead><tbody>${taskList(c).filter(t => !t.off).map(t => { const st = taskStatus(c, t); return `<tr><td>${esc(t.name)}</td><td>${st.last ? fmtDate(st.last.date) + (st.last.km ? "<br>" + kmFmt(st.last.km) : "") : "—"}</td><td>${st.last ? esc(cap(dueText(st))) : esc(intervalText(t))}</td></tr>`; }).join("")}</tbody></table>
+      <h2>Historial de trabajos${logs.length ? " · " + logs.length : ""}</h2>
+      ${logs.length ? `<table class="r-grid"><thead><tr><th>Fecha</th><th>Trabajo</th><th>Coste</th></tr></thead><tbody>${logs.map(l => `<tr><td>${fmtDate(l.date)}${l.km ? "<br>" + kmFmt(l.km) : ""}</td><td><b>${esc(l.title || taskNames(l.tasks) || "Trabajo")}</b>${l.title && l.tasks?.length ? "<br>" + esc(taskNames(l.tasks)) : ""}${l.parts?.length ? "<br>Piezas: " + esc(l.parts.map(p => p.name + (num(p.qty, 1) !== 1 ? " ×" + qtyFmt(num(p.qty)) : "")).join(", ")) : ""}${l.notes ? "<br><i>" + esc(l.notes) + "</i>" : ""}</td><td>${l.cost ? euro(l.cost) : ""}</td></tr>`).join("")}</tbody>${spent ? `<tfoot><tr><td></td><th>Total</th><th>${euro(spent)}</th></tr></tfoot>` : ""}</table>` : `<p>Sin trabajos registrados.</p>`}
+      ${trips.count ? `<h2>Uso</h2><table>${row("Salidas registradas", String(trips.count))}${row("Kilómetros recorridos", kmFmt(trips.km))}${row("Este año", year.count + (year.count === 1 ? " salida · " : " salidas · ") + kmFmt(year.km))}${row("Consumo medio aproximado", trips.consumo ? trips.consumo.toFixed(1).replace(".", ",") + " L/100 km" : "")}${row("Gasolina", trips.cost ? euro(trips.cost) : "")}</table>` : ""}
+      ${docs.length ? `<h2>Documentación</h2><table class="r-grid"><tbody>${docs.map(d => `<tr><td>${esc(d.title || d.type)}</td><td>${esc(d.type)}</td><td>${d.date ? fmtDate(d.date) : ""}${d.expiry ? "<br>Caduca " + fmtDate(d.expiry) : ""}</td></tr>`).join("")}</tbody></table>` : ""}
+      ${c.notes ? `<h2>Notas</h2><p class="r-notes">${esc(c.notes)}</p>` : ""}
+      <footer>Ficha generada con Garaje Clásico el ${fmtDate(today())}</footer>
+    </article>`;
+  }
+  async function printCar(c) {
+    if (!c) return;
+    let box = $("#print");
+    if (!box) { box = document.createElement("div"); box.id = "print"; document.body.appendChild(box); }
+    box.innerHTML = carReport(c);
+    await Promise.all([...box.querySelectorAll("img")].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; setTimeout(r, 4000); })));
+    const old = document.title;
+    document.title = "Ficha " + carName(c) + (c.plate ? " " + c.plate : "");
+    toast("Elige «Guardar como PDF» o compártelo");
+    setTimeout(() => { window.print(); document.title = old; }, 300);
   }
 
   // ---------- Lista de la compra ----------
@@ -1080,6 +1211,7 @@
       <h2>Añadir</h2>
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" data-add="log"><svg><use href="#i-wrench"/></svg>Registrar un trabajo</button>
+        <button class="btn" type="button" data-add="trip"><svg><use href="#i-car"/></svg>Registrar una salida</button>
         <button class="btn" type="button" data-add="part"><svg><use href="#i-box"/></svg>Repuesto al almacén</button>
         <button class="btn" type="button" data-add="scan"><svg><use href="#i-scan"/></svg>Escanear un código de barras</button>
         <button class="btn" type="button" data-add="shop"><svg><use href="#i-cart"/></svg>Algo a la lista de la compra</button>
@@ -1088,7 +1220,7 @@
     $("#sheetBody").onclick = e => {
       const b = e.target.closest("[data-add]"); if (!b) return;
       const k = b.dataset.add;
-      if (k === "car") carForm(); else if (k === "part") partForm(); else if (k === "shop") shopForm();
+      if (k === "car") carForm(); else if (k === "part") partForm(); else if (k === "trip" && S.cars.length) tripForm({}, S.carId); else if (k === "shop") shopForm();
       else if (k === "scan") { closeSheet(); scanToStock(); }
       else S.cars.length ? logForm() : (toast("Primero añade un vehículo"), carForm());
     };
@@ -1132,10 +1264,11 @@
     ["i-car", "Bienvenido al garaje", "Aquí tienes tus coches y motos, sus repuestos, su mantenimiento y sus papeles. Todo funciona también sin cobertura."],
     ["i-cal", "Avisos", "Arriba del garaje salen los avisos: ITV, seguro, impuesto y mantenimientos que tocan. Tócalo para ir al vehículo."],
     ["i-wrench", "Mantenimiento", "Entra en un vehículo y pulsa «Registrar» junto a cada trabajo. Apunta el último cambio de aceite que recuerdes y la app empezará a contar."],
-    ["i-box", "Almacén", "Guarda lo que tienes en el taller con su cantidad. Con − y + la cambias de un toque. Si la caja tiene código de barras, pulsa «Escanear»."],
+    ["i-moto", "Salidas", "Cuando saques uno, pulsa «Registrar salida» y apunta los km al volver. Si un vehículo lleva un mes parado te avisa para arrancarlo."],
+    ["i-box", "Almacén", "Guarda lo que tienes en el taller con su cantidad. Con − y + la cambias de un toque. Apunta dónde está guardado cada repuesto y lo encontrarás al momento. Si la caja tiene código de barras, pulsa «Escanear»."],
     ["i-cart", "Usar y comprar", "Al montar una pieza, ábrela y pulsa «Usar en un vehículo»: se descuenta y queda en el historial. Lo que baja del mínimo pasa solo a la lista de la compra."],
     ["i-gear", "Despiece y búsqueda", "Cada vehículo tiene sus piezas con referencia OEM. El botón del mundo busca la pieza en tiendas y desguaces."],
-    ["i-doc", "Papeles y fotos", "En cada vehículo puedes guardar fotos, la ficha técnica, el seguro y las facturas."],
+    ["i-doc", "Papeles y fotos", "En cada vehículo puedes guardar fotos, la ficha técnica, el seguro y las facturas, y sacar una ficha en PDF con todo su historial. En las notas, el micrófono te deja dictar en vez de escribir."],
     ["i-dots", "Opciones", "En el botón ⋯ de arriba están la copia de seguridad, compartir entre móviles y la letra más grande. Esta guía también está ahí."],
   ];
   function showGuide(step = 0) {
@@ -1158,7 +1291,7 @@
     const last = lsGet("lastBackup");
     openSheet(`
       <h2>Opciones</h2>
-      <p class="lead">${S.cars.length} vehículos · ${S.parts.length} repuestos · ${S.logs.length} trabajos · ${S.docs.length} documentos</p>
+      <p class="lead">${S.cars.length} vehículos · ${S.parts.length} repuestos · ${S.logs.length} trabajos · ${S.trips.length} salidas · ${S.docs.length} documentos</p>
       <div class="banner">Los datos se guardan solo en este teléfono. ${last ? "Última copia: " + fmtDate(last.slice(0, 10)) + "." : "Todavía no has hecho ninguna copia."} La app te lo recuerda cada ${BACKUP_DAYS} días.</div>
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" id="exportBtn"><svg><use href="#i-down"/></svg>Hacer copia de seguridad</button>
@@ -1226,7 +1359,7 @@
             ${p.oem ? `<span class="mono">${esc(p.oem)}</span>` : (p.ref ? `<span class="mono">${esc(p.ref)}</span>` : "")}
             ${p.brand ? `<span>${esc(p.brand)}</span>` : ""}
             ${showCar ? `<span>${esc(car ? carName(car) : "General")}</span>` : ""}
-            ${p.location ? `<span>${esc(p.location)}</span>` : ""}
+            ${p.location && S.stockGroup !== "loc" ? `<span class="loc"><svg><use href="#i-pin"/></svg>${esc(p.location)}</span>` : ""}
             ${st === "zero" ? `<span class="chip crit">Agotado</span>` : st === "low" ? `<span class="chip warn">Reponer</span>` : ""}
           </span>
         </span>
@@ -1281,7 +1414,9 @@
       ${ref ? `<span class="credit">Foto de referencia · Wikipedia</span>` : ""}
     </div>`;
   };
-  const alertRow = (a) => `<button class="due-row" type="button" data-alert-car="${a.car.id}"><span class="due-main"><span class="due-name">${esc(a.label)} ${pill(a.state)}</span><span class="due-when">${esc(carName(a.car))} · ${esc(cap(a.text))}</span></span><svg class="chev" aria-hidden="true"><use href="#i-back"/></svg></button>`;
+  const alertRow = (a) => a.run
+    ? `<div class="due-row"><button class="due-main due-btn" type="button" data-alert-car="${a.car.id}" data-to-tab="trips"><span class="due-name">${esc(a.label)} ${pill(a.state)}</span><span class="due-when">${esc(carName(a.car))} · ${esc(cap(a.text))}</span></button><button class="mini brass" type="button" data-run-car="${a.car.id}">Arrancado hoy</button></div>`
+    : `<button class="due-row" type="button" data-alert-car="${a.car.id}"><span class="due-main"><span class="due-name">${esc(a.label)} ${pill(a.state)}</span><span class="due-when">${esc(carName(a.car))} · ${esc(cap(a.text))}</span></span><svg class="chev" aria-hidden="true"><use href="#i-back"/></svg></button>`;
 
   function viewGarage() {
     const low = S.parts.filter(p => stockState(p) !== "ok").length + S.shop.length;
@@ -1348,7 +1483,7 @@
       <div class="section-head result-head"><span class="eyebrow">Mantenimiento${c.km ? " · " + kmFmt(c.km) : ""}</span><button class="link" type="button" data-km>${c.km ? "Actualizar km" : "Poner los km"}</button></div>
       <div class="list">${tasks}</div>
       <div class="actions"><button class="btn primary" type="button" data-new-log><svg><use href="#i-wrench"/></svg>Registrar trabajo</button><button class="btn" type="button" data-intervals>Ajustar intervalos</button></div>
-      <div class="section-head result-head"><span class="eyebrow">Historial · ${logs.length}</span></div>
+      <div class="section-head result-head"><span class="eyebrow">Historial · ${logs.length}</span>${logs.length ? `<button class="link" type="button" data-print-car>Ficha en PDF</button>` : ""}</div>
       ${logs.length ? `<div class="timeline">${logs.map(l => `<button class="log" type="button" data-log="${l.id}">
           <span class="log-date">${fmtDate(l.date)}${l.km ? " · " + kmFmt(l.km) : ""}</span>
           <strong>${esc(l.title || taskNames(l.tasks) || "Trabajo")}</strong>
@@ -1357,6 +1492,32 @@
           ${l.cost ? `<span class="log-meta">${esc(l.cost)} €</span>` : ""}
         </button>`).join("")}</div>`
       : `<p class="note">Todavía no hay trabajos registrados. Apunta el último cambio de aceite que recuerdes y la app empezará a contar desde ahí.</p>`}`;
+  }
+  function viewTrips(c) {
+    const idle = idleStatus(c), trips = carTrips(c.id), st = tripStats(c.id), all = tripStats(c.id, "");
+    const year = today().slice(0, 4);
+    return `
+      <div class="list"><div class="due-row"><span class="due-main"><span class="due-name">Arrancarlo ${idle.state === "none" ? pill("none", "Sin registrar") : pill(idle.state)}</span>
+        <span class="due-when">${idle.state === "none" ? "Apunta cuándo lo arrancas y te aviso si lleva parado" : esc(idleText(idle)) + " · " + fmtDate(idle.last)}</span>
+        <span class="due-when">${idle.limit ? `Aviso a los ${idle.limit} días parado` : "Sin aviso"} · <button class="link" type="button" data-idle-cfg>Cambiar</button></span></span>
+        <button class="mini brass" type="button" data-run-car="${c.id}">Arrancado hoy</button></div></div>
+      <div class="section-head result-head"><span class="eyebrow">Este año · ${year}</span></div>
+      <div class="facts">
+        <div><span>Salidas</span><b>${st.count}</b></div>
+        <div><span>Km</span><b>${Math.round(st.km).toLocaleString("es-ES")}</b></div>
+        <div><span>Litros</span><b>${st.liters ? qtyFmt(Math.round(st.liters * 10) / 10) : "—"}</b></div>
+        <div><span>L/100</span><b>${st.consumo ? st.consumo.toFixed(1).replace(".", ",") : "—"}</b></div>
+      </div>
+      ${st.cost ? `<p class="note">Gasolina este año: ${euro(st.cost)}${all.count > st.count ? ` · En total: ${all.count} salidas y ${kmFmt(all.km)}` : ""}</p>` : all.count > st.count ? `<p class="note">En total: ${all.count} salidas y ${kmFmt(all.km)}</p>` : ""}
+      <div class="actions"><button class="btn primary" type="button" data-new-trip><svg><use href="#i-car"/></svg>Registrar salida</button></div>
+      <div class="section-head result-head"><span class="eyebrow">Historial · ${trips.length}</span></div>
+      ${trips.length ? `<div class="timeline">${trips.map(t => `<button class="log" type="button" data-trip="${t.id}">
+          <span class="log-date">${fmtDate(t.date)}${t.odo ? " · " + kmFmt(t.odo) : ""}</span>
+          <strong>${t.dist ? kmFmt(t.dist) + " recorridos" : "Salida"}</strong>
+          ${t.liters || t.fuelCost ? `<span class="log-meta">${[t.liters ? qtyFmt(num(t.liters)) + " L" : "", t.fuelCost ? euro(t.fuelCost) : ""].filter(Boolean).join(" · ")}</span>` : ""}
+          ${t.notes ? `<span class="log-meta">${esc(t.notes)}</span>` : ""}
+        </button>`).join("")}</div>`
+      : `<p class="note">Cada vez que lo saques, apunta los kilómetros al volver. Así sabrás cuánto rueda cada uno y cuánto gasta.</p>`}`;
   }
   function viewDocs(c) {
     const docs = S.docs.filter(d => d.carId === c.id).sort((a, b) => DOC_TYPES.indexOf(a.type) - DOC_TYPES.indexOf(b.type) || (b.date || "").localeCompare(a.date || ""));
@@ -1378,9 +1539,10 @@
       <div class="hero"><dl class="spec" style="border-top:0">${spec.map(([k, v]) => `<div><dt>${k}</dt><dd class="${["Matrícula","Bastidor","Motor"].includes(k) ? "mono" : ""}">${esc(v || "—")}</dd></div>`).join("")}</dl></div>
       ${c.notes ? `<div class="list"><div class="row" style="grid-template-columns:1fr"><span style="white-space:pre-wrap">${esc(c.notes)}</span></div></div>` : ""}
       <div class="eyebrow">Despiece oficial</div>${linksBlock(c)}
-      <div class="actions"><button class="btn" type="button" data-edit-car>Editar ficha</button></div>`;
+      <div class="actions"><button class="btn primary" type="button" data-print-car><svg><use href="#i-doc"/></svg>Ficha en PDF</button><button class="btn" type="button" data-edit-car>Editar ficha</button></div>
+      <p class="note">La ficha en PDF reúne los datos, los papeles, el mantenimiento, el historial con lo gastado y el uso. Sirve para la ITV, el seguro o si algún día lo vendes.</p>`;
   }
-  const SUBTABS = [["maint", "Mantenimiento"], ["parts", "Repuestos"], ["catalog", "Despiece"], ["docs", "Documentos"], ["info", "Ficha y fotos"]];
+  const SUBTABS = [["maint", "Mantenimiento"], ["trips", "Salidas"], ["parts", "Repuestos"], ["catalog", "Despiece"], ["docs", "Documentos"], ["info", "Ficha y fotos"]];
   function viewCar() {
     const c = carById(S.carId);
     if (!c) { S.tab = "garage"; return viewGarage(); }
@@ -1390,6 +1552,7 @@
     const al = alertsFor(c);
     let body = "";
     if (S.carTab === "maint") body = viewMaint(c);
+    else if (S.carTab === "trips") body = viewTrips(c);
     else if (S.carTab === "parts") {
       body = parts.length ? `<div class="list">${parts.map(p => partRow(p, false)).join("")}</div>`
         : `<div class="empty"><h3>Sin repuestos todavía</h3><p>Guarda aquí el aceite, los filtros y las piezas que tienes para este vehículo.</p><button class="btn primary" type="button" data-new-part>Añadir repuesto</button></div>`;
@@ -1439,14 +1602,17 @@
     else if (S.stockFilter !== "all") items = items.filter(p => p.category === S.stockFilter);
     const usedCats = CATEGORIES.filter(c => S.parts.some(p => p.category === c));
     items.sort((a, b) => (a.category || "").localeCompare(b.category || "", "es") || a.name.localeCompare(b.name, "es"));
+    const byLoc = S.stockGroup === "loc", NOLOC = "Sin ubicación";
+    if (byLoc) items.sort((a, b) => (a.location ? 0 : 1) - (b.location ? 0 : 1) || (a.location || "").localeCompare(b.location || "", "es") || a.name.localeCompare(b.name, "es"));
     const byCat = {};
-    items.forEach(p => (byCat[p.category || "Otros"] ||= []).push(p));
+    items.forEach(p => (byCat[byLoc ? (p.location || "").trim() || NOLOC : p.category || "Otros"] ||= []).push(p));
     const f = (k, label) => `<button class="filter" type="button" data-sf="${esc(k)}" aria-pressed="${S.stockFilter === k}">${esc(label)}</button>`;
     const fc = (k, label) => `<button class="filter" type="button" data-sc="${esc(k)}" aria-pressed="${S.stockCar === k}">${esc(label)}</button>`;
     return head + (S.parts.length ? `
         <div class="filters" aria-label="Filtrar por vehículo">${fc("all", "Todos los vehículos")}${S.cars.map(c => fc(c.id, carName(c))).join("")}${fc("", "General")}</div>
         <div class="filters" aria-label="Filtrar por categoría">${f("all", "Todo")}${f("low", "Por reponer")}${usedCats.map(c => f(c, c)).join("")}</div>
-        ${items.length ? Object.keys(byCat).map(cat => `<div class="section-head result-head"><span class="eyebrow">${esc(cat)}</span></div><div class="list">${byCat[cat].map(p => partRow(p)).join("")}</div>`).join("") : `<p class="note">Nada con estos filtros.</p>`}`
+        <div class="seg two" role="group" aria-label="Ordenar el almacén"><button type="button" data-sg="cat" aria-pressed="${!byLoc}">Por categoría</button><button type="button" data-sg="loc" aria-pressed="${byLoc}">Por ubicación</button></div>
+        ${items.length ? Object.keys(byCat).map(cat => `<div class="section-head result-head"><span class="eyebrow">${byLoc && cat !== NOLOC ? `<svg class="ico"><use href="#i-pin"/></svg>` : ""}${esc(cat)}</span></div><div class="list">${byCat[cat].map(p => partRow(p)).join("")}</div>`).join("") : `<p class="note">Nada con estos filtros.</p>`}`
       : `<div class="empty"><svg width="44" height="44" style="color:var(--brass)"><use href="#i-box"/></svg><h3>Almacén vacío</h3><p>Apunta lo que hay en el taller: bidones de aceite, filtros, bujías, pastillas… con su cantidad y dónde está guardado. Si la caja tiene código de barras, escanéalo.</p><div class="actions"><button class="btn primary" type="button" data-new-part>Añadir repuesto</button><button class="btn" type="button" data-scan><svg><use href="#i-scan"/></svg>Escanear</button></div></div>`);
   }
 
@@ -1496,7 +1662,7 @@
     v.innerHTML = banner + html;
     document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-current", (t.dataset.tab === S.tab || (S.tab === "car" && t.dataset.tab === "garage")) ? "page" : "false"));
     if (focusQ) { const q = $("#q"); q.focus(); try { q.setSelectionRange(caret, caret); } catch {} }
-    lsSet("ui", JSON.stringify({ tab: S.tab === "car" ? "garage" : S.tab, catCar: S.catCar, stockView: S.stockView }));
+    lsSet("ui", JSON.stringify({ tab: S.tab === "car" ? "garage" : S.tab, catCar: S.catCar, stockView: S.stockView, stockGroup: S.stockGroup }));
   }
 
   // ---------- Eventos ----------
@@ -1519,7 +1685,7 @@
   $("#fab").addEventListener("click", () => {
     if (S.tab === "car") {
       const c = carById(S.carId);
-      return ({ maint: () => logForm({}, { carId: S.carId }), parts: () => partForm(), catalog: () => catalogForm(), docs: () => docForm({}, S.carId), info: () => carForm(c) })[S.carTab]?.();
+      return ({ maint: () => logForm({}, { carId: S.carId }), trips: () => tripForm({}, S.carId), parts: () => partForm(), catalog: () => catalogForm(), docs: () => docForm({}, S.carId), info: () => carForm(c) })[S.carTab]?.();
     }
     if (S.tab === "stock") return S.stockView === "shop" ? shopForm() : partForm();
     if (S.tab === "catalog") return catalogForm();
@@ -1539,7 +1705,13 @@
     const el = e.target.closest("button"); if (!el) return;
     const d = el.dataset, car = carById(S.carId);
     if (d.car) goCar(d.car);
-    else if (d.alertCar) goCar(d.alertCar);
+    else if (d.alertCar) goCar(d.alertCar, d.toTab || "maint");
+    else if (d.runCar) { const c = carById(d.runCar); if (c) markRun(c); }
+    else if (d.trip) tripForm(S.trips.find(t => t.id === d.trip));
+    else if ("newTrip" in d) tripForm({}, S.carId);
+    else if ("idleCfg" in d) intervalsForm(car);
+    else if ("printCar" in d) printCar(car);
+    else if (d.sg) { S.stockGroup = d.sg; render(); }
     else if (d.go) { if (S.tab === "car" && d.go === "garage") leaveCar(); else { S.tab = d.go; render(); } }
     else if (d.goto) { S.tab = d.goto; render(); }
     else if ("gotoShop" in d) { S.tab = "stock"; S.stockView = "shop"; render(); scrollTo({ top: 0 }); }
@@ -1603,7 +1775,7 @@
   { const t = lsGet("theme"); if (t) document.documentElement.dataset.theme = t; }
   function setTextSize(k) { lsSet("textSize", k || ""); if (k) document.documentElement.dataset.text = k; else delete document.documentElement.dataset.text; }
   setTextSize(lsGet("textSize"));
-  try { const ui = JSON.parse(lsGet("ui") || "{}"); if (ui.tab) S.tab = ui.tab; if (ui.catCar) S.catCar = ui.catCar; if (ui.stockView) S.stockView = ui.stockView; } catch {}
+  try { const ui = JSON.parse(lsGet("ui") || "{}"); if (ui.tab) S.tab = ui.tab; if (ui.catCar) S.catCar = ui.catCar; if (ui.stockView) S.stockView = ui.stockView; if (ui.stockGroup) S.stockGroup = ui.stockGroup; } catch {}
   render();
 
   (async () => {

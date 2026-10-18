@@ -32,7 +32,7 @@ test("un vehículo borrado no vuelve a aparecer al recargar", async ({ page }) =
 test("la guía aparece la primera vez y no la siguiente", async ({ page }) => {
   await openApp(page, { guide: true });
   await expect(page.locator("#sheetBody h2")).toHaveText("Bienvenido al garaje");
-  for (let i = 0; i < 7; i++) await page.click("#gNext");
+  for (let i = 0; i < 8; i++) await page.click("#gNext");
   await expect(page.locator("#gNext")).toHaveText("Empezar");
   await page.click("#gNext");
   await expect(page.locator("#sheet")).toBeHidden();

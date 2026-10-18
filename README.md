@@ -19,6 +19,11 @@ App para el móvil para llevar una colección de coches clásicos: la ficha de c
 - **Datos rápidos:** aceite, capacidades, neumáticos, batería y bujías de cada vehículo.
 - **Tamaño de letra:** normal, grande o muy grande (Opciones).
 - **Fotos de los vehículos:** van en `fotos/` (ver `fotos/LEEME.md`).
+- **Dónde está cada repuesto:** ubicación en el taller (estantería, caja…), almacén ordenado por ubicación y, al escanear una caja, la app dice dónde está.
+- **Salidas:** km de cada salida, litros y gasolina, con kilómetros del año y consumo medio aproximado.
+- **Vehículo parado:** aviso si un vehículo lleva más de 30 días sin arrancar (ajustable), con botón «Arrancado hoy».
+- **Ficha en PDF:** datos, papeles, mantenimiento, historial con lo gastado, uso y documentos, lista para imprimir o guardar como PDF.
+- **Dictado:** botón de micrófono en las notas para dictar en vez de escribir.
 - **Guía de bienvenida:** sale la primera vez que se abre la app y se puede volver a ver en «⋯» → «Cómo se usa la app».
 
 ## Pruebas
