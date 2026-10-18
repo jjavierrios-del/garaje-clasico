@@ -2,22 +2,99 @@
   const CATEGORIES = ["Aceites y fluidos","Filtros","Encendido","Motor","Juntas y retenes","Refrigeración","Alimentación","Frenos","Embrague y transmisión","Suspensión y dirección","Eléctrico","Carrocería","Interior","Neumáticos y llantas","Herramientas","Otros"];
   const GROUPS = ["Mantenimiento","Lubricación","Motor","Distribución","Alimentación","Encendido","Refrigeración","Escape","Embrague","Caja de cambios","Transmisión","Frenos","Suspensión delantera","Suspensión trasera","Dirección","Ruedas","Eléctrico","Carrocería","Interior"];
   const UNITS = ["ud","L","kg","juego","m"];
+  // Mantenimiento: cada cuánto toca cada trabajo (meses / km). Cada vehículo puede ajustarlo.
+  const TASKS = [
+    { k: "aceite", name: "Aceite y filtro de aceite", months: 12, km: 10000, moto: { km: 6000 } },
+    { k: "filtro-aire", name: "Filtro de aire", months: 24, km: 30000, moto: { km: 12000 } },
+    { k: "filtro-comb", name: "Filtro de combustible", months: 24, km: 30000, notMoto: true },
+    { k: "encendido", name: "Bujías o calentadores", months: 36, km: 30000, moto: { months: 24, km: 12000 } },
+    { k: "liq-frenos", name: "Líquido de frenos", months: 24, km: 0 },
+    { k: "refrigerante", name: "Anticongelante", months: 36, km: 0 },
+    { k: "distribucion", name: "Distribución (correa o cadena)", months: 60, km: 60000, notMoto: true },
+    { k: "transmision", name: "Cadena o correa de transmisión", months: 0, km: 20000, onlyMoto: true },
+    { k: "bateria", name: "Revisar y cargar la batería", months: 6, km: 0 },
+    { k: "neumaticos", name: "Revisar neumáticos", months: 12, km: 0 },
+  ];
+  const DOC_TYPES = ["Permiso de circulación", "Ficha técnica", "Seguro", "ITV", "Impuesto de circulación", "Factura", "Manual", "Otro"];
+  const DATE_FIELDS = [["itvDate", "ITV"], ["insuranceDate", "Seguro"], ["taxDate", "Impuesto de circulación"]];
+  const DOC_DATE_FIELD = { "ITV": "itvDate", "Seguro": "insuranceDate", "Impuesto de circulación": "taxDate" };
+  const BACKUP_DAYS = 30;
 
-  const S = { cars: [], parts: [], catalog: [], tab: "garage", carId: null, carTab: "parts", kind: "all", stockFilter: "all", stockCar: "all", catCar: null, q: "", ready: false, canWrite: true, canUpload: true };
+  const S = { cars: [], parts: [], catalog: [], logs: [], docs: [], shop: [], tab: "garage", carId: null, carTab: "maint", kind: "all", stockView: "inv", stockFilter: "all", stockCar: "all", catCar: null, q: "", allAlerts: false, ready: false, canUpload: true };
   // Despieces publicados en el repositorio (catalog/*.json) y piezas propias guardadas en el móvil
   let libIndex = [], libItems = [], localCat = [], libDocs = {};
-  const photoCache = new Map();
 
   const $ = (s, el = document) => el.querySelector(s);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   const norm = (v) => String(v ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const codeKey = (v) => norm(v).replace(/[^a-z0-9]/g, "");
+  const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
   const carById = (id) => S.cars.find(c => c.id === id);
   const carName = (c) => c ? [c.make, c.model].filter(Boolean).join(" ") : "General";
+  const isMoto = (c) => c?.kind === "moto";
+  const num = (v, d = 0) => { const n = parseFloat(String(v).replace(",", ".")); return isFinite(n) ? n : d; };
+  const qtyFmt = (n) => Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
+  const kmFmt = (n) => Math.round(num(n)).toLocaleString("es-ES") + " km";
+  const stockState = (p) => { const q = num(p.qty), m = num(p.minQty); return q <= 0 ? "zero" : (m > 0 && q <= m ? "low" : "ok"); };
+  const strip = (o) => { const { id, ...rest } = o; return rest; };
+
+  // Fechas en formato AAAA-MM-DD, calculadas a mediodía para no tropezar con los cambios de hora
+  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  const atNoon = (d) => new Date(d + "T12:00:00");
+  const fmtDate = (d) => d ? atNoon(d).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const daysUntil = (d) => Math.round((atNoon(d) - atNoon(today())) / 86400000);
+  const addMonths = (d, m) => { const x = atNoon(d); x.setMonth(x.getMonth() + m); return x.toISOString().slice(0, 10); };
+  const relDays = (n) => { const a = Math.abs(n); const t = a >= 60 ? Math.round(a / 30.4) + " meses" : a === 1 ? "1 día" : a + " días"; return n === 0 ? "hoy" : n > 0 ? "en " + t : "hace " + t; };
+
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2400); }
+
+  // ---------- Fotos y archivos (se guardan en el móvil) ----------
+  const photoCache = new Map(), photoPending = new Set();
+  function blobUrl(id) {
+    if (!id) return "";
+    if (photoCache.has(id)) return photoCache.get(id);
+    if (!photoPending.has(id)) {
+      photoPending.add(id);
+      tx("photos", "readonly", st => st.get(id)).then(b => { if (b) { photoCache.set(id, URL.createObjectURL(b)); render(); } }).catch(() => {});
+    }
+    return "";
+  }
+  async function blobUrlAsync(id) {
+    if (!id) return "";
+    if (photoCache.has(id)) return photoCache.get(id);
+    const b = await tx("photos", "readonly", st => st.get(id));
+    if (!b) return "";
+    const u = URL.createObjectURL(b); photoCache.set(id, u); return u;
+  }
+  const getBlob = (id) => tx("photos", "readonly", st => st.get(id));
+  async function storeBlob(blob, prefix = "file-") { const id = prefix + uid(); await idbPut("photos", blob, id); photoCache.set(id, URL.createObjectURL(blob)); return id; }
+  async function storeImage(file, max = 1600, prefix = "ph-") {
+    try { return await storeBlob(await shrink(file, max), prefix); } catch { toast("No se pudo guardar la foto"); return null; }
+  }
+  async function dropBlob(id) {
+    if (!id) return;
+    try { await idbDel("photos", id); } catch {}
+    const u = photoCache.get(id); if (u) URL.revokeObjectURL(u);
+    photoCache.delete(id); photoPending.delete(id);
+  }
+  function shrink(file, max) {
+    return new Promise((res) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(b => res(b || file), "image/jpeg", .84);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(file); };
+      img.src = url;
+    });
+  }
   // Foto propia del móvil; si no hay, la foto principal del artículo de Wikipedia del modelo
   let wikiPhotos = {};
   try { wikiPhotos = JSON.parse(localStorage.getItem("wikiPhotos") || "{}"); } catch {}
-  const ownPhoto = (c) => (c && c.photoId && photoCache.get(c.photoId)) || "";
+  const ownPhoto = (c) => blobUrl(c?.photoId);
   const photoUrl = (c) => ownPhoto(c) || (c && c.wiki && wikiPhotos[c.wiki]?.url) || "";
   async function resolveWikiPhotos() {
     const todo = [...new Set(S.cars.filter(c => c.wiki && !wikiPhotos[c.wiki]).map(c => c.wiki))];
@@ -37,19 +114,15 @@
     try { localStorage.setItem("wikiPhotos", JSON.stringify(wikiPhotos)); } catch {}
     render();
   }
-  const num = (v, d = 0) => { const n = parseFloat(String(v).replace(",", ".")); return isFinite(n) ? n : d; };
-  const qtyFmt = (n) => Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
-  const stockState = (p) => { const q = num(p.qty), m = num(p.minQty); return q <= 0 ? "zero" : (m > 0 && q <= m ? "low" : "ok"); };
-
-  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2200); }
 
   // ---------- Datos (IndexedDB, en el propio dispositivo) ----------
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const STORES = ["cars", "parts", "catalog", "logs", "docs", "shop"];
   let idbP = null;
   function idb() {
     return idbP ||= new Promise((res, rej) => {
-      const r = indexedDB.open("garaje-clasico", 1);
-      r.onupgradeneeded = () => { const d = r.result; ["cars", "parts", "catalog"].forEach(n => d.objectStoreNames.contains(n) || d.createObjectStore(n, { keyPath: "id" })); d.objectStoreNames.contains("photos") || d.createObjectStore("photos"); };
+      const r = indexedDB.open("garaje-clasico", 2);
+      r.onupgradeneeded = () => { const d = r.result; STORES.forEach(n => d.objectStoreNames.contains(n) || d.createObjectStore(n, { keyPath: "id" })); d.objectStoreNames.contains("photos") || d.createObjectStore("photos"); };
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
   }
@@ -63,7 +136,7 @@
   const idbClear = (store) => tx(store, "readwrite", st => st.clear());
 
   function mergeCatalog() {
-    // Un despiece de la biblioteca se aplica a cada coche que lo tenga asignado
+    // Un despiece de la biblioteca se aplica a cada vehículo que lo tenga asignado
     const out = [];
     for (const car of S.cars) {
       if (!car.catalogKey) continue;
@@ -80,11 +153,10 @@
   async function loadAll() {
     const carsRaw = await idbAll("cars");
     S.cars = carsRaw.filter(c => !c.deleted);
-    loadAll.removedCars = carsRaw.filter(c => c.deleted).map(c => c.id); S.parts = await idbAll("parts"); localCat = await idbAll("catalog");
-    for (const c of S.cars) if (c.photoId && !photoCache.has(c.photoId)) {
-      const blob = await tx("photos", "readonly", st => st.get(c.photoId));
-      if (blob) photoCache.set(c.photoId, URL.createObjectURL(blob));
-    }
+    loadAll.removedCars = carsRaw.filter(c => c.deleted).map(c => c.id);
+    S.parts = await idbAll("parts"); localCat = await idbAll("catalog");
+    S.logs = await idbAll("logs"); S.docs = await idbAll("docs"); S.shop = await idbAll("shop");
+    await Promise.all(S.cars.map(c => blobUrlAsync(c.photoId).catch(() => "")));
     mergeCatalog();
   }
   async function save(coll, id, data) {
@@ -115,7 +187,6 @@
       const r = await fetch("datos/garaje.json", { cache: "no-cache" });
       if (!r.ok) return;
       const d = await r.json(), skip = new Set([...S.cars.map(c => c.id), ...(loadAll.removedCars || [])]);
-      // Completa campos nuevos (foto, tipo) en los ya guardados sin tocar lo que se haya editado
       let changed = false;
       for (const seed of d.coches || []) {
         const cur = S.cars.find(c => c.id === seed.id);
@@ -150,6 +221,228 @@
     } catch {}
   }
 
+  // ---------- Mantenimiento y avisos ----------
+  function taskList(car) {
+    const moto = isMoto(car), ov = car.intervals || {};
+    return TASKS.filter(t => moto ? !t.notMoto : !t.onlyMoto).map(t => {
+      const base = { ...t, ...(moto ? t.moto : {}) }, o = ov[t.k] || {};
+      return { k: t.k, name: t.name, months: o.months ?? base.months, km: o.km ?? base.km, off: !!o.off };
+    });
+  }
+  const taskName = (k) => k === "otro" ? "Otro trabajo" : (TASKS.find(t => t.k === k)?.name || "");
+  const taskNames = (ks = []) => ks.map(taskName).filter(Boolean).join(", ");
+  const carLogs = (carId) => S.logs.filter(l => l.carId === carId).sort((a, b) => (b.date || "").localeCompare(a.date || "") || num(b.km) - num(a.km));
+  function taskStatus(car, t) {
+    const last = carLogs(car.id).find(l => (l.tasks || []).includes(t.k));
+    if (!last) return { state: "none", t };
+    const curKm = num(car.km);
+    const dueDate = t.months > 0 && last.date ? addMonths(last.date, t.months) : "";
+    const dueKm = t.km > 0 && num(last.km) > 0 ? num(last.km) + t.km : 0;
+    const days = dueDate ? daysUntil(dueDate) : null;
+    const kmLeft = dueKm && curKm ? dueKm - curKm : null;
+    const state = (days !== null && days < 0) || (kmLeft !== null && kmLeft < 0) ? "overdue"
+      : (days !== null && days <= 30) || (kmLeft !== null && kmLeft <= 1000) ? "soon" : "ok";
+    return { state, t, last, dueDate, dueKm, days, kmLeft };
+  }
+  function dueText(s) {
+    const out = [];
+    if (s.dueDate) out.push((s.days < 0 ? "tocaba " : "toca ") + relDays(s.days));
+    if (s.kmLeft !== null && s.kmLeft !== undefined) out.push(s.kmLeft < 0 ? "pasado " + kmFmt(-s.kmLeft) : "quedan " + kmFmt(s.kmLeft));
+    else if (s.dueKm) out.push("a los " + kmFmt(s.dueKm));
+    return out.join(" · ") || "al día";
+  }
+  const intervalText = (t) => [t.months ? "cada " + (t.months % 12 === 0 ? (t.months / 12 === 1 ? "año" : t.months / 12 + " años") : t.months + " meses") : "", t.km ? "cada " + kmFmt(t.km) : ""].filter(Boolean).join(" o ");
+  function dateStatus(car, field) {
+    const d = car[field]; if (!d) return null;
+    const days = daysUntil(d);
+    return { state: days < 0 ? "overdue" : days <= 30 ? "soon" : "ok", days, date: d };
+  }
+  function alertsFor(car) {
+    const out = [];
+    DATE_FIELDS.forEach(([f, label]) => {
+      const s = dateStatus(car, f);
+      if (s && s.state !== "ok") out.push({ car, label, state: s.state, days: s.days, text: (s.days < 0 ? "venció " : "vence ") + relDays(s.days) + " · " + fmtDate(s.date) });
+    });
+    taskList(car).filter(t => !t.off).forEach(t => {
+      const s = taskStatus(car, t);
+      if (s.state === "overdue" || s.state === "soon") out.push({ car, label: t.name, state: s.state, days: s.days ?? (s.kmLeft < 0 ? -1 : 15), text: dueText(s) });
+    });
+    return out;
+  }
+  const allAlerts = () => S.cars.flatMap(alertsFor).sort((a, b) => (a.state === "overdue" ? 0 : 1) - (b.state === "overdue" ? 0 : 1) || a.days - b.days);
+  const PILL = { overdue: ["crit", "Vencido"], soon: ["warn", "Pronto"], ok: ["ok", "Al día"], none: ["", "Sin registrar"] };
+  const pill = (state, label) => { const [cls, txt] = PILL[state] || PILL.none; return `<span class="chip ${cls}">${label || txt}</span>`; };
+  // Al montar un repuesto se adivina qué trabajo de mantenimiento es
+  function guessTasks(p) {
+    const t = norm(p.name + " " + (p.category || ""));
+    if (/aceite/.test(t) && /filtro|aceite/.test(t)) return ["aceite"];
+    if (/filtro/.test(t) && /aire/.test(t) && !/habitaculo|polen/.test(t)) return ["filtro-aire"];
+    if (/filtro/.test(t) && /gasoil|gasolina|combustible/.test(t)) return ["filtro-comb"];
+    if (/bujia|calentador|precalentamiento/.test(t)) return ["encendido"];
+    if (/liquido/.test(t) && /freno/.test(t)) return ["liq-frenos"];
+    if (/anticongelante|refrigerante/.test(t)) return ["refrigerante"];
+    if (/bateria/.test(t)) return ["bateria"];
+    if (/distribucion/.test(t)) return ["distribucion"];
+    if (/neumatico|rueda/.test(t)) return ["neumaticos"];
+    return [];
+  }
+  async function applyStock(list, sign) {
+    for (const u of list || []) {
+      const p = S.parts.find(x => x.id === u.partId); if (!p) continue;
+      p.qty = Math.max(0, num(p.qty) + sign * num(u.qty, 1));
+      await save("parts", p.id, strip(p));
+    }
+  }
+
+  // ---------- Copia de seguridad ----------
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  function backupNeeded() {
+    const has = S.parts.length + S.logs.length + S.docs.length + S.shop.length > 0 || S.cars.some(c => c.photoId || c.gallery?.length || c.itvDate || c.insuranceDate);
+    if (!has) return null;
+    const last = lsGet("lastBackup"), snooze = lsGet("backupSnooze");
+    if (snooze && new Date(snooze) > new Date()) return null;
+    if (!last) return "Todavía no has guardado ninguna copia de tus datos.";
+    const d = Math.floor((Date.now() - new Date(last)) / 86400000);
+    return d >= BACKUP_DAYS ? `Hace ${d} días que no guardas una copia de tus datos.` : null;
+  }
+  const blobToData = (b) => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
+  async function exportBackup() {
+    toast("Preparando la copia…");
+    const ids = new Set();
+    S.cars.forEach(c => { if (c.photoId) ids.add(c.photoId); (c.gallery || []).forEach(i => ids.add(i)); });
+    S.parts.forEach(p => p.photoId && ids.add(p.photoId));
+    S.docs.forEach(d => d.fileId && ids.add(d.fileId));
+    const files = {};
+    for (const id of ids) { const b = await getBlob(id); if (b) files[id] = await blobToData(b); }
+    const json = JSON.stringify({ app: "garaje-clasico", version: 2, exportado: new Date().toISOString(), coches: await idbAll("cars"), repuestos: S.parts, despiecePropio: localCat, registros: S.logs, documentos: S.docs, compra: S.shop, fotos: files });
+    const name = "garaje-clasico-" + today() + ".json";
+    const file = new File([json], name, { type: "application/json" });
+    const done = () => { lsSet("lastBackup", new Date().toISOString()); lsSet("backupSnooze", ""); render(); toast("Copia guardada"); };
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Copia de Garaje Clásico" }); done(); return; } catch (e) { if (e.name === "AbortError") return; }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    done();
+  }
+  async function importBackup(file) {
+    try {
+      const d = JSON.parse(await file.text());
+      if (d.app !== "garaje-clasico") throw new Error("formato");
+      for (const n of [...STORES, "photos"]) await idbClear(n);
+      for (const c of d.coches || []) await idbPut("cars", c);
+      for (const p of d.repuestos || []) await idbPut("parts", p);
+      for (const k of d.despiecePropio || []) await idbPut("catalog", k);
+      for (const l of d.registros || []) await idbPut("logs", l);
+      for (const x of d.documentos || []) await idbPut("docs", x);
+      for (const x of d.compra || []) await idbPut("shop", x);
+      for (const [id, url] of Object.entries(d.fotos || {})) await idbPut("photos", await (await fetch(url)).blob(), id);
+      photoCache.clear(); photoPending.clear(); await loadAll(); closeSheet(); render();
+      toast("Copia restaurada");
+    } catch { toast("Ese archivo no es una copia de Garaje Clásico"); }
+  }
+
+  // ---------- Lector de códigos de barras ----------
+  let zxingP = null;
+  const loadZXing = () => zxingP ||= new Promise((res, rej) => {
+    if (window.ZXing) return res(window.ZXing);
+    const s = document.createElement("script"); s.src = "vendor/zxing-0.21.3.min.js";
+    s.onload = () => res(window.ZXing); s.onerror = () => { zxingP = null; rej(new Error("zxing")); };
+    document.head.appendChild(s);
+  });
+  const zxHints = (ZX) => {
+    const h = new Map(), F = ZX.BarcodeFormat;
+    h.set(ZX.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE, F.DATA_MATRIX]);
+    h.set(ZX.DecodeHintType.TRY_HARDER, true);
+    return h;
+  };
+  async function nativeDetector() {
+    if (!("BarcodeDetector" in window)) return null;
+    try {
+      const have = await BarcodeDetector.getSupportedFormats();
+      const want = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf", "qr_code", "data_matrix"].filter(f => have.includes(f));
+      return want.length ? new BarcodeDetector({ formats: want }) : null;
+    } catch { return null; }
+  }
+  async function decodeImage(file) {
+    const small = await shrink(file, 1600);
+    const det = await nativeDetector();
+    if (det) { try { const r = await det.detect(await createImageBitmap(small)); if (r[0]?.rawValue) return r[0].rawValue; } catch {} }
+    try {
+      const ZX = await loadZXing(), url = URL.createObjectURL(small);
+      try { return (await new ZX.BrowserMultiFormatReader(zxHints(ZX)).decodeFromImageUrl(url)).getText(); }
+      finally { URL.revokeObjectURL(url); }
+    } catch { return null; }
+  }
+  function scanCode() {
+    return new Promise(async (resolve) => {
+      const box = $("#scanner"), video = $("#scanVideo"), msg = $("#scanMsg");
+      let stream = null, timer = null, reader = null, done = false;
+      const finish = (code) => {
+        if (done) return; done = true;
+        clearInterval(timer);
+        try { reader?.reset(); } catch {}
+        stream?.getTracks().forEach(t => t.stop());
+        video.srcObject = null; box.hidden = true;
+        if (code) navigator.vibrate?.(60);
+        resolve(code ? String(code).trim() : null);
+      };
+      box.hidden = false; msg.textContent = "Apunta al código de barras de la caja";
+      $("#scanClose").onclick = () => finish(null);
+      $("#scanFile").onchange = async (e) => {
+        const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+        msg.textContent = "Leyendo la foto…";
+        const code = await decodeImage(f);
+        if (code) finish(code); else msg.textContent = "No encuentro ningún código en la foto. Hazla más cerca y con buena luz.";
+      };
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("sin cámara");
+        const det = await nativeDetector();
+        if (det) {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+          if (done) { stream.getTracks().forEach(t => t.stop()); return; }
+          video.srcObject = stream; await video.play();
+          timer = setInterval(async () => { try { const r = await det.detect(video); if (r[0]?.rawValue) finish(r[0].rawValue); } catch {} }, 300);
+        } else {
+          const ZX = await loadZXing();
+          if (done) return;
+          reader = new ZX.BrowserMultiFormatReader(zxHints(ZX), 300);
+          await reader.decodeFromConstraints({ video: { facingMode: "environment" }, audio: false }, video, (res) => { if (res) finish(res.getText()); });
+          if (done) try { reader.reset(); } catch {}
+        }
+      } catch { if (!done) msg.textContent = "No puedo abrir la cámara. Pulsa «Hacer foto del código»."; }
+    });
+  }
+  async function scanToStock() {
+    const code = await scanCode(); if (!code) return;
+    const found = S.parts.find(p => p.barcode && codeKey(p.barcode) === codeKey(code));
+    if (found) {
+      openSheet(`<h2>${esc(found.name)}</h2>
+        <p class="lead">Ya lo tienes en el almacén: quedan ${qtyFmt(num(found.qty))} ${esc(found.unit || "ud")}.</p>
+        <div class="codebox"><span class="eyebrow">Código de barras</span><span class="mono">${esc(code)}</span></div>
+        <div class="actions" style="flex-direction:column">
+          <button class="btn primary" type="button" id="scPlus">Sumar 1 al almacén</button>
+          <button class="btn" type="button" id="scUse"><svg><use href="#i-wrench"/></svg>Usar en un vehículo</button>
+          <button class="btn" type="button" id="scOpen">Ver el repuesto</button>
+          <button class="btn" type="button" data-close>Cerrar</button>
+        </div>`);
+      $("#scPlus").onclick = async () => { found.qty = num(found.qty) + 1; await save("parts", found.id, strip(found)); closeSheet(); toast(`${found.name}: ahora tienes ${qtyFmt(num(found.qty))}`); };
+      $("#scUse").onclick = () => useInVehicle(found);
+      $("#scOpen").onclick = () => partForm(found);
+    } else {
+      openSheet(`<h2>Código nuevo</h2>
+        <div class="codebox"><span class="eyebrow">Código de barras</span><span class="mono">${esc(code)}</span></div>
+        <p class="lead">No tienes ningún repuesto con este código.</p>
+        <div class="actions" style="flex-direction:column">
+          <button class="btn primary" type="button" id="scNew">Dar de alta en el almacén</button>
+          <a class="btn" href="https://www.google.com/search?q=${encodeURIComponent(code)}" target="_blank" rel="noopener"><svg><use href="#i-web"/></svg>Buscar qué producto es</a>
+          <button class="btn" type="button" data-close>Cerrar</button>
+        </div>`);
+      $("#scNew").onclick = () => partForm({ barcode: code, qty: 1 });
+    }
+  }
+
   // ---------- Búsqueda web ----------
   const SHOPS = [
     { name: "Google", hint: "Búsqueda general", url: q => "https://www.google.com/search?q=" + encodeURIComponent(q) },
@@ -173,10 +466,11 @@
       ${block("Buscar por descripción", desc || item.name)}
       <p class="note">Antes de comprar, comprueba el código con el vendedor: en clásicos cambian piezas según año y número de bastidor.</p>
       <div class="actions"><button class="btn" type="button" data-close>Cerrar</button></div>`);
-    $("#copyCode")?.addEventListener("click", () => {
-      navigator.clipboard?.writeText(code).then(() => toast("Código copiado"), () => selectText($("#codeTxt")));
-      if (!navigator.clipboard) selectText($("#codeTxt"));
-    });
+    $("#copyCode")?.addEventListener("click", () => copyText(code, $("#codeTxt"), "Código copiado"));
+  }
+  function copyText(text, el, okMsg) {
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(okMsg), () => el && selectText(el));
+    else if (el) selectText(el);
   }
   function selectText(el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Mantén pulsado para copiar"); }
 
@@ -184,6 +478,7 @@
   function openSheet(html) {
     const sh = $("#sheet"), sc = $("#scrim");
     $("#sheetBody").innerHTML = `<div class="grabber"></div>` + html;
+    $("#sheetBody").onclick = null;
     sh.hidden = false; sc.hidden = false;
     requestAnimationFrame(() => { sh.classList.add("on"); sc.classList.add("on"); });
     sh.scrollTop = 0;
@@ -191,7 +486,7 @@
   function closeSheet() {
     const sh = $("#sheet"), sc = $("#scrim");
     sh.classList.remove("on"); sc.classList.remove("on");
-    setTimeout(() => { sh.hidden = true; sc.hidden = true; $("#sheetBody").innerHTML = ""; }, 250);
+    setTimeout(() => { if (sh.classList.contains("on")) return; sh.hidden = true; sc.hidden = true; $("#sheetBody").innerHTML = ""; }, 250);
   }
   $("#scrim").addEventListener("click", closeSheet);
   $("#sheet").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
@@ -204,11 +499,11 @@
     return `<div class="${cls}"><label for="${id}">${label}</label><input id="${id}" ${opts.mono ? 'class="mono"' : ""} type="${opts.type || "text"}" ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""} ${opts.ph ? `placeholder="${esc(opts.ph)}"` : ""} value="${esc(val)}" autocomplete="off"></div>`;
   };
   const val = (id) => ($("#" + id)?.value ?? "").trim();
-  const carOptions = (withGeneral = true) => [...(withGeneral ? [["", "General (varios coches)"]] : []), ...S.cars.map(c => [c.id, carName(c) + (c.year ? " · " + c.year : "")])];
+  const carOptions = (withGeneral = true) => [...(withGeneral ? [["", "General (varios vehículos)"]] : []), ...S.cars.map(c => [c.id, carName(c) + (c.year ? " · " + c.year : "")])];
 
   function carForm(car = {}) {
     openSheet(`
-      <h2>${car.id ? "Editar coche" : "Nuevo coche"}</h2>
+      <h2>${car.id ? "Editar vehículo" : "Nuevo vehículo"}</h2>
       <form class="form" id="f">
         ${field("c_make", "Marca", car.make, { ph: "Mercedes-Benz" })}
         ${field("c_model", "Modelo", car.model, { ph: "280 SL" })}
@@ -222,69 +517,52 @@
         ${field("c_color", "Color", car.color, { ph: "Blanco papiro" })}
         ${libIndex.length ? field("c_lib", "Despiece de referencia", car.catalogKey || "", { full: true, options: [["", "Ninguno"], ...libIndex.map(l => [l.key, l.title])] }) : ""}
         ${field("c_notes", "Notas", car.notes, { area: true, full: true })}
-        ${S.canUpload ? `<div class="field full"><label for="c_photo">Foto</label><input id="c_photo" type="file" accept="image/*"></div>` : ""}
+        ${S.canUpload ? `<div class="field full"><label for="c_photo">Foto principal</label><input id="c_photo" type="file" accept="image/*"></div>` : ""}
       </form>
       <div class="actions">
         <button class="btn primary" type="button" id="saveCar">Guardar</button>
-        ${car.id ? `<button class="btn danger" type="button" id="delCar">Borrar coche</button>` : `<button class="btn" type="button" data-close>Cancelar</button>`}
+        ${car.id ? `<button class="btn danger" type="button" id="delCar">Borrar vehículo</button>` : `<button class="btn" type="button" data-close>Cancelar</button>`}
       </div>`);
     $("#saveCar").addEventListener("click", async () => {
-      const data = { make: val("c_make"), model: val("c_model"), version: val("c_version"), year: val("c_year"), plate: val("c_plate").toUpperCase(), km: val("c_km"), vin: val("c_vin").toUpperCase(), engine: val("c_engine"), color: val("c_color"), notes: val("c_notes"), photoId: car.photoId || "", catalogKey: $("#c_lib") ? val("c_lib") : (car.catalogKey || ""), kind: val("c_kind") || "coche", wiki: car.wiki || "" };
+      const data = { ...strip(car), make: val("c_make"), model: val("c_model"), version: val("c_version"), year: val("c_year"), plate: val("c_plate").toUpperCase(), km: val("c_km"), vin: val("c_vin").toUpperCase(), engine: val("c_engine"), color: val("c_color"), notes: val("c_notes"), photoId: car.photoId || "", catalogKey: $("#c_lib") ? val("c_lib") : (car.catalogKey || ""), kind: val("c_kind") || "coche", wiki: car.wiki || "" };
       if (!data.make && !data.model) { toast("Escribe al menos la marca o el modelo"); return; }
       const file = $("#c_photo")?.files?.[0];
       $("#saveCar").disabled = true;
-      if (file) { const id = await uploadPhoto(file); if (id) data.photoId = id; }
+      if (file) {
+        const id = await storeImage(file);
+        if (id) { if (data.photoId) data.gallery = [data.photoId, ...(data.gallery || []).filter(x => x !== data.photoId)]; data.photoId = id; }
+      }
       const id = await save("cars", car.id, data);
       $("#saveCar") && ($("#saveCar").disabled = false);
-      if (id) { closeSheet(); toast(car.id ? "Coche actualizado" : "Coche añadido"); if (!car.id) { S.tab = "car"; S.carId = id; S.carTab = "parts"; } render(); }
+      if (id) { closeSheet(); toast(car.id ? "Vehículo actualizado" : "Vehículo añadido"); if (!car.id) { S.tab = "car"; S.carId = id; S.carTab = "maint"; } render(); }
     });
-    $("#delCar")?.addEventListener("click", () => confirmSheet(`¿Borrar ${esc(carName(car))}?`, "Se borra su despiece. Los repuestos del almacén se quedan como «General».", async () => {
+    $("#delCar")?.addEventListener("click", () => confirmSheet(`¿Borrar ${esc(carName(car))}?`, "Se borran su despiece, su historial, sus fotos y sus documentos. Los repuestos del almacén se quedan como «General».", async () => {
       for (const p of S.parts.filter(p => p.carId === car.id)) await save("parts", p.id, { ...strip(p), carId: "" });
       for (const it of localCat.filter(i => i.carId === car.id)) await idbDel("catalog", it.id);
       localCat = await idbAll("catalog");
-      if (car.photoId) await idbDel("photos", car.photoId);
+      for (const l of S.logs.filter(l => l.carId === car.id)) await remove("logs", l.id);
+      for (const d of S.docs.filter(d => d.carId === car.id)) { await dropBlob(d.fileId); await remove("docs", d.id); }
+      for (const x of S.shop.filter(x => x.carId === car.id)) await remove("shop", x.id);
+      for (const ph of [car.photoId, ...(car.gallery || [])]) await dropBlob(ph);
       await remove("cars", car.id);
-      S.tab = "garage"; S.carId = null; closeSheet(); toast("Coche borrado"); render();
+      S.tab = "garage"; S.carId = null; closeSheet(); toast("Vehículo borrado"); render();
     }));
   }
-  const strip = (o) => { const { id, ...rest } = o; return rest; };
 
-  async function uploadPhoto(file) {
-    try {
-      const blob = await shrink(file, 1600);
-      const id = "ph-" + uid();
-      await idbPut("photos", blob, id);
-      photoCache.set(id, URL.createObjectURL(blob));
-      return id;
-    } catch { toast("No se pudo guardar la foto"); return null; }
-  }
-  function shrink(file, max) {
-    return new Promise((res) => {
-      const img = new Image(), url = URL.createObjectURL(file);
-      img.onload = () => {
-        const k = Math.min(1, max / Math.max(img.width, img.height));
-        const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        c.toBlob(b => res(b || file), "image/jpeg", .84);
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); res(file); };
-      img.src = url;
-    });
-  }
-
-  function partForm(part = {}) {
+  function partForm(part = {}, opts = {}) {
     const isNew = !part.id;
+    const thumb = blobUrl(part.photoId);
     openSheet(`
       <h2>${isNew ? "Nuevo repuesto" : "Editar repuesto"}</h2>
-      <p class="lead">Lo que tienes guardado en el taller: bidones de aceite, filtros, bujías, juntas…</p>
+      ${thumb ? `<img class="part-photo" src="${esc(thumb)}" alt="">` : `<p class="lead">Lo que tienes guardado en el taller: bidones de aceite, filtros, bujías, juntas…</p>`}
       <form class="form" id="f">
         ${field("p_name", "Pieza", part.name, { full: true, ph: "Filtro de aceite" })}
-        ${field("p_car", "Coche", part.carId ?? (S.carId || ""), { options: carOptions(), full: true })}
+        ${field("p_car", "Vehículo", part.carId ?? (S.carId || ""), { options: carOptions(), full: true })}
         ${field("p_cat", "Categoría", part.category || "Otros", { options: CATEGORIES })}
         ${field("p_brand", "Fabricante", part.brand, { ph: "Bosch, Mann…" })}
         ${field("p_oem", "Ref. OEM", part.oem, { mono: true, ph: "Código original" })}
         ${field("p_ref", "Ref. propia / equivalente", part.ref, { mono: true })}
+        <div class="field full"><label for="p_barcode">Código de barras</label><div class="with-btn"><input id="p_barcode" class="mono" inputmode="numeric" value="${esc(part.barcode)}" autocomplete="off" placeholder="Escanéalo de la caja"><button class="mini" type="button" id="scanBarcode"><svg><use href="#i-scan"/></svg>Escanear</button></div></div>
         ${field("p_qty", "Cantidad", part.qty ?? 1, { inputmode: "decimal" })}
         ${field("p_unit", "Unidad", part.unit || "ud", { options: UNITS })}
         ${field("p_min", "Avisar si quedan", part.minQty ?? "", { inputmode: "decimal", ph: "0 = sin aviso" })}
@@ -292,19 +570,36 @@
         ${field("p_price", "Precio (€)", part.price, { inputmode: "decimal" })}
         ${field("p_supplier", "Proveedor", part.supplier)}
         ${field("p_notes", "Notas", part.notes, { area: true, full: true })}
+        <div class="field full"><label for="p_photo">${part.photoId ? "Cambiar la foto" : "Foto del repuesto"}</label><input id="p_photo" type="file" accept="image/*"></div>
       </form>
       <div class="actions">
         <button class="btn primary" type="button" id="savePart">Guardar</button>
-        ${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn" type="button" id="webPart"><svg><use href="#i-web"/></svg>Buscar en web</button><button class="btn danger" type="button" id="delPart">Borrar</button>`}
+        ${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn" type="button" id="usePart"><svg><use href="#i-wrench"/></svg>Usar en un vehículo</button><button class="btn" type="button" id="webPart"><svg><use href="#i-web"/></svg>Buscar en web</button><button class="btn danger" type="button" id="delPart">Borrar</button>`}
       </div>`);
+    $("#scanBarcode").addEventListener("click", async () => { const code = await scanCode(); if (code) { $("#p_barcode").value = code; toast("Código leído"); } });
     $("#savePart").addEventListener("click", async () => {
-      const data = { name: val("p_name"), carId: val("p_car"), category: val("p_cat"), brand: val("p_brand"), oem: val("p_oem").toUpperCase(), ref: val("p_ref").toUpperCase(), qty: num(val("p_qty"), 0), unit: val("p_unit"), minQty: num(val("p_min"), 0), location: val("p_loc"), price: val("p_price"), supplier: val("p_supplier"), notes: val("p_notes"), catalogId: part.catalogId || "" };
+      const data = { ...strip(part), name: val("p_name"), carId: val("p_car"), category: val("p_cat"), brand: val("p_brand"), oem: val("p_oem").toUpperCase(), ref: val("p_ref").toUpperCase(), barcode: val("p_barcode"), qty: num(val("p_qty"), 0), unit: val("p_unit"), minQty: num(val("p_min"), 0), location: val("p_loc"), price: val("p_price"), supplier: val("p_supplier"), notes: val("p_notes"), catalogId: part.catalogId || "" };
       if (!data.name) { toast("Escribe el nombre de la pieza"); return; }
+      const twin = data.barcode && S.parts.find(p => p.id !== part.id && codeKey(p.barcode) === codeKey(data.barcode));
+      if (twin) { toast(`Ese código ya es de «${twin.name}»`); return; }
+      const file = $("#p_photo")?.files?.[0];
+      $("#savePart").disabled = true;
+      if (file) { const ph = await storeImage(file, 1200); if (ph) { await dropBlob(part.photoId); data.photoId = ph; } }
       const id = await save("parts", part.id, data);
-      if (id) { closeSheet(); toast(isNew ? "Repuesto añadido" : "Repuesto actualizado"); }
+      $("#savePart") && ($("#savePart").disabled = false);
+      if (id) {
+        if (opts.fromShop) await remove("shop", opts.fromShop);
+        closeSheet(); toast(isNew ? "Repuesto añadido" : "Repuesto actualizado");
+      }
     });
+    $("#usePart")?.addEventListener("click", () => useInVehicle(part));
     $("#webPart")?.addEventListener("click", () => openWeb(part));
-    $("#delPart")?.addEventListener("click", () => confirmSheet(`¿Borrar «${esc(part.name)}»?`, "Se quita del almacén.", async () => { await remove("parts", part.id); closeSheet(); toast("Repuesto borrado"); }));
+    $("#delPart")?.addEventListener("click", () => confirmSheet(`¿Borrar «${esc(part.name)}»?`, "Se quita del almacén.", async () => { await dropBlob(part.photoId); await remove("parts", part.id); closeSheet(); toast("Repuesto borrado"); }));
+  }
+  // Montar un repuesto: se apunta en el historial del vehículo y se descuenta del almacén
+  function useInVehicle(part) {
+    if (!S.cars.length) { toast("Primero añade un vehículo"); return; }
+    logForm({}, { carId: part.carId || S.carId || S.cars[0].id, tasks: guessTasks(part), title: "Montaje: " + part.name, parts: [{ partId: part.id, name: part.name, qty: 1 }] });
   }
 
   function catalogForm(item = {}) {
@@ -313,26 +608,27 @@
       <h2>${isNew ? "Nueva pieza de despiece" : "Pieza de despiece"}</h2>
       <form class="form" id="f">
         ${field("k_name", "Pieza", item.name, { full: true })}
-        ${field("k_car", "Coche", item.carId || S.catCar || S.carId || S.cars[0]?.id || "", { options: carOptions(false), full: true })}
+        ${field("k_car", "Vehículo", item.carId || S.catCar || S.carId || S.cars[0]?.id || "", { options: carOptions(false), full: true })}
         ${field("k_group", "Grupo", item.group || "Motor", { options: GROUPS })}
-        ${field("k_qty", "Uds. en el coche", item.perCar, { inputmode: "numeric" })}
+        ${field("k_qty", "Uds. en el vehículo", item.perCar, { inputmode: "numeric" })}
         ${field("k_oem", "Ref. OEM", item.oem, { mono: true })}
         ${field("k_alt", "Equivalentes", item.alt, { mono: true, ph: "Bosch W8DC, NGK BP6ES" })}
-        ${field("k_notes", "Notas", item.notes, { area: true, full: true, })}
+        ${field("k_notes", "Notas", item.notes, { area: true, full: true })}
         ${field("k_src", "Fuente", item.source, { full: true, ph: "Catálogo EPC, manual de taller…" })}
       </form>
       ${item.verified === false ? `<p class="banner">Referencia pendiente de verificar con catálogo oficial o vendedor.</p>` : ""}
       ${item.url ? `<a class="shop" href="${esc(item.url)}" target="_blank" rel="noopener"><strong>Ver dónde se encontró</strong><span>${esc((() => { try { return new URL(item.url).hostname.replace("www.", ""); } catch { return item.url; } })())}</span></a>` : ""}
       <div class="actions">
         <button class="btn primary" type="button" id="saveCat">Guardar</button>
-        ${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn danger" type="button" id="delCat">Borrar</button>`}
+        ${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn" type="button" id="toShop"><svg><use href="#i-cart"/></svg>Añadir a la lista de la compra</button><button class="btn danger" type="button" id="delCat">Borrar</button>`}
       </div>`);
     $("#saveCat").addEventListener("click", async () => {
       const data = { ...strip(item), lib: undefined, name: val("k_name"), carId: val("k_car"), group: val("k_group"), perCar: val("k_qty"), oem: val("k_oem").toUpperCase(), alt: val("k_alt"), notes: val("k_notes"), source: val("k_src") };
-      if (!data.name || !data.carId) { toast(S.cars.length ? "Escribe el nombre de la pieza" : "Primero añade un coche"); return; }
+      if (!data.name || !data.carId) { toast(S.cars.length ? "Escribe el nombre de la pieza" : "Primero añade un vehículo"); return; }
       const id = await save("catalog", item.id, data);
       if (id) { closeSheet(); toast(isNew ? "Pieza añadida al despiece" : "Pieza actualizada"); }
     });
+    $("#toShop")?.addEventListener("click", () => addToShop(item));
     $("#delCat")?.addEventListener("click", () => confirmSheet(`¿Borrar «${esc(item.name)}» del despiece?`, "No afecta a tu almacén.", async () => { await remove("catalog", item.id); closeSheet(); toast("Pieza borrada"); }));
   }
 
@@ -341,47 +637,242 @@
     $("#yes").addEventListener("click", async () => { $("#yes").disabled = true; await onYes(); });
   }
 
+  // ---------- Formularios de mantenimiento ----------
+  function partOptions(carId) {
+    const sorted = [...S.parts].sort((a, b) => a.name.localeCompare(b.name, "es"));
+    const opt = (p) => `<option value="${p.id}">${esc(p.name)} (quedan ${qtyFmt(num(p.qty))})</option>`;
+    const mine = sorted.filter(p => p.carId === carId), gen = sorted.filter(p => !p.carId), other = sorted.filter(p => p.carId && p.carId !== carId);
+    if (!sorted.length) return `<option value="">El almacén está vacío</option>`;
+    return `<option value="">Elige una pieza…</option>${mine.length ? `<optgroup label="De este vehículo">${mine.map(opt).join("")}</optgroup>` : ""}${gen.length ? `<optgroup label="Generales">${gen.map(opt).join("")}</optgroup>` : ""}${other.length ? `<optgroup label="De otros vehículos">${other.map(opt).join("")}</optgroup>` : ""}`;
+  }
+  const taskChecks = (car, checked) => `<div class="check-grid">${[...taskList(car).filter(t => !t.off), { k: "otro", name: "Otro trabajo" }].map(t => `<label class="check"><input type="checkbox" value="${t.k}" ${checked.includes(t.k) ? "checked" : ""}>${esc(t.name)}</label>`).join("")}</div>`;
+  function logForm(log = {}, opts = {}) {
+    const isNew = !log.id;
+    const carId = log.carId || opts.carId || S.carId || S.cars[0]?.id || "";
+    const car = carById(carId) || {};
+    let used = (log.parts || opts.parts || []).map(p => ({ ...p }));
+    openSheet(`
+      <h2>${isNew ? "Registrar trabajo" : "Editar trabajo"}</h2>
+      <form class="form" id="f">
+        ${field("l_car", "Vehículo", carId, { options: carOptions(false), full: true })}
+        ${field("l_date", "Fecha", log.date || today(), { type: "date" })}
+        ${field("l_km", "Kilómetros", log.km ?? car.km ?? "", { inputmode: "numeric" })}
+        <fieldset class="field full checks"><legend>Qué se ha hecho</legend><div id="l_tasks">${taskChecks(car, log.tasks || opts.tasks || [])}</div></fieldset>
+        ${field("l_title", "Descripción", log.title ?? opts.title ?? "", { full: true, ph: "Cambio de aceite en el taller de Paco" })}
+        <div class="field full"><label for="l_part">Piezas del almacén usadas</label>
+          <div class="add-part"><select id="l_part">${partOptions(carId)}</select><input id="l_qty" inputmode="decimal" value="1" aria-label="Cantidad"><button class="mini brass" type="button" id="l_add">Añadir</button></div>
+          <div id="l_used" class="used"></div>
+        </div>
+        ${field("l_cost", "Coste (€)", log.cost, { inputmode: "decimal" })}
+        ${field("l_notes", "Notas", log.notes, { area: true, full: true })}
+      </form>
+      <p class="note">Las piezas que añadas aquí se descuentan del almacén.</p>
+      <div class="actions"><button class="btn primary" type="button" id="saveLog">Guardar</button>${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn danger" type="button" id="delLog">Borrar</button>`}</div>`);
+    const drawUsed = () => { $("#l_used").innerHTML = used.map((u, i) => `<span class="chip">${esc(u.name)} ×${qtyFmt(num(u.qty, 1))}<button type="button" data-rm="${i}" aria-label="Quitar ${esc(u.name)}">×</button></span>`).join(""); };
+    drawUsed();
+    $("#l_used").onclick = (e) => { const b = e.target.closest("[data-rm]"); if (b) { used.splice(Number(b.dataset.rm), 1); drawUsed(); } };
+    $("#l_add").onclick = () => {
+      const p = S.parts.find(x => x.id === val("l_part")); if (!p) { toast("Elige una pieza del almacén"); return; }
+      const q = num(val("l_qty"), 1) || 1, prev = used.find(u => u.partId === p.id);
+      if (prev) prev.qty = num(prev.qty, 1) + q; else used.push({ partId: p.id, name: p.name, qty: q });
+      drawUsed();
+      const extra = guessTasks(p).filter(k => !$(`#l_tasks input[value="${k}"]`)?.checked);
+      extra.forEach(k => { const cb = $(`#l_tasks input[value="${k}"]`); if (cb) cb.checked = true; });
+    };
+    $("#l_car").onchange = () => {
+      const c = carById(val("l_car")) || {}, checked = [...document.querySelectorAll("#l_tasks input:checked")].map(i => i.value);
+      $("#l_tasks").innerHTML = taskChecks(c, checked); $("#l_part").innerHTML = partOptions(c.id);
+      if (!val("l_km") && c.km) $("#l_km").value = c.km;
+    };
+    $("#saveLog").onclick = async () => {
+      const data = { carId: val("l_car"), date: val("l_date") || today(), km: val("l_km") ? Math.round(num(val("l_km"))) : "", tasks: [...document.querySelectorAll("#l_tasks input:checked")].map(i => i.value), title: val("l_title"), parts: used, cost: val("l_cost"), notes: val("l_notes"), createdAt: log.createdAt };
+      if (!data.carId) { toast("Elige un vehículo"); return; }
+      if (!data.tasks.length && !data.title && !used.length) { toast("Marca qué se ha hecho o escribe una descripción"); return; }
+      $("#saveLog").disabled = true;
+      await applyStock(log.parts, +1); await applyStock(used, -1);
+      const id = await save("logs", log.id, data);
+      const c = carById(data.carId);
+      if (c && data.km && data.km > num(c.km)) await save("cars", c.id, { ...strip(c), km: String(data.km) });
+      if (id) { closeSheet(); toast(isNew ? "Trabajo registrado" : "Trabajo actualizado"); }
+    };
+    $("#delLog")?.addEventListener("click", () => confirmSheet("¿Borrar este trabajo?", used.length ? "Las piezas que usaste vuelven al almacén." : "Se quita del historial.", async () => { await applyStock(log.parts, +1); await remove("logs", log.id); closeSheet(); toast("Trabajo borrado"); }));
+  }
+  function intervalsForm(car) {
+    const list = taskList(car);
+    openSheet(`<h2>Intervalos</h2><p class="lead">Cada cuánto toca cada trabajo en el ${esc(carName(car))}. Pon 0 si no quieres aviso por tiempo o por kilómetros.</p>
+      <div class="intervals">${list.map(t => `<div class="iv-row"><label class="iv-on"><input type="checkbox" data-iv-on="${t.k}" ${t.off ? "" : "checked"}>${esc(t.name)}</label><div class="iv-in"><input inputmode="numeric" data-iv-m="${t.k}" value="${t.months}" aria-label="Meses"><span>meses</span><input inputmode="numeric" data-iv-km="${t.k}" value="${t.km}" aria-label="Kilómetros"><span>km</span></div></div>`).join("")}</div>
+      <div class="actions"><button class="btn primary" type="button" id="saveIv">Guardar</button><button class="btn" type="button" id="resetIv">Valores de fábrica</button></div>`);
+    $("#saveIv").onclick = async () => {
+      const iv = {};
+      list.forEach(t => { iv[t.k] = { months: Math.max(0, Math.round(num($(`[data-iv-m="${t.k}"]`).value))), km: Math.max(0, Math.round(num($(`[data-iv-km="${t.k}"]`).value))), off: !$(`[data-iv-on="${t.k}"]`).checked }; });
+      await save("cars", car.id, { ...strip(car), intervals: iv }); closeSheet(); toast("Intervalos guardados");
+    };
+    $("#resetIv").onclick = async () => { const { intervals, ...rest } = strip(car); await save("cars", car.id, rest); closeSheet(); toast("Intervalos de fábrica"); };
+  }
+  function datesForm(car) {
+    openSheet(`<h2>Papeles</h2><p class="lead">La app te avisa 30 días antes de cada fecha del ${esc(carName(car))}.</p>
+      <form class="form">
+        ${field("d_itv", "Próxima ITV", car.itvDate, { type: "date" })}
+        ${field("d_ins", "Vence el seguro", car.insuranceDate, { type: "date" })}
+        ${field("d_tax", "Impuesto de circulación", car.taxDate, { type: "date" })}
+        ${field("d_insurer", "Compañía de seguros", car.insurer)}
+      </form>
+      <p class="note">Los vehículos históricos pasan la ITV con otra frecuencia: pon la fecha que figura en la tarjeta de ITV.</p>
+      <div class="actions"><button class="btn primary" type="button" id="saveDates">Guardar</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
+    $("#saveDates").onclick = async () => { await save("cars", car.id, { ...strip(car), itvDate: val("d_itv"), insuranceDate: val("d_ins"), taxDate: val("d_tax"), insurer: val("d_insurer") }); closeSheet(); toast("Fechas guardadas"); };
+  }
+  function kmForm(car) {
+    openSheet(`<h2>Kilómetros</h2><p class="lead">Lo que marca ahora el cuentakilómetros del ${esc(carName(car))}.</p>
+      <form class="form">${field("km_now", "Kilómetros", car.km, { inputmode: "numeric", full: true })}</form>
+      <div class="actions"><button class="btn primary" type="button" id="saveKm">Guardar</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
+    $("#saveKm").onclick = async () => { await save("cars", car.id, { ...strip(car), km: val("km_now") ? String(Math.round(num(val("km_now")))) : "" }); closeSheet(); toast("Kilómetros actualizados"); };
+  }
+
+  // ---------- Lista de la compra ----------
+  async function addToShop(item) {
+    if (S.shop.some(x => x.catalogId && x.catalogId === item.id)) { toast("Ya está en la lista de la compra"); return; }
+    await save("shop", null, { name: item.name, carId: item.carId || "", oem: item.oem || "", alt: item.alt || "", catalogId: item.id || "", qty: 1, note: "" });
+    closeSheet(); toast("Añadido a la lista de la compra");
+  }
+  function shopForm(x = {}) {
+    const isNew = !x.id;
+    openSheet(`<h2>${isNew ? "Añadir a la lista" : "En la lista"}</h2>
+      <form class="form">
+        ${field("s_name", "Qué hay que comprar", x.name, { full: true, ph: "Bidón de aceite 10W-40" })}
+        ${field("s_car", "Vehículo", x.carId ?? (S.carId || ""), { options: carOptions(), full: true })}
+        ${field("s_oem", "Ref. OEM", x.oem, { mono: true })}
+        ${field("s_qty", "Cantidad", x.qty ?? 1, { inputmode: "decimal" })}
+        ${field("s_alt", "Equivalentes", x.alt, { mono: true, full: true })}
+        ${field("s_note", "Nota", x.note, { full: true, ph: "Preguntar en el desguace de la carretera" })}
+      </form>
+      <div class="actions"><button class="btn primary" type="button" id="saveShop">Guardar</button>${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn" type="button" id="webShop"><svg><use href="#i-web"/></svg>Buscar en tiendas</button><button class="btn danger" type="button" id="delShop">Quitar de la lista</button>`}</div>`);
+    $("#saveShop").onclick = async () => {
+      const data = { ...strip(x), name: val("s_name"), carId: val("s_car"), oem: val("s_oem").toUpperCase(), qty: num(val("s_qty"), 1) || 1, alt: val("s_alt"), note: val("s_note") };
+      if (!data.name) { toast("Escribe qué hay que comprar"); return; }
+      if (await save("shop", x.id, data)) { closeSheet(); toast(isNew ? "Añadido a la lista" : "Lista actualizada"); }
+    };
+    $("#webShop")?.addEventListener("click", () => openWeb({ name: x.name, carId: x.carId, oem: x.oem, ref: x.alt }));
+    $("#delShop")?.addEventListener("click", async () => { await remove("shop", x.id); closeSheet(); toast("Quitado de la lista"); });
+  }
+  function boughtPart(p) {
+    const suggest = Math.max(1, num(p.minQty) - num(p.qty) + 1);
+    openSheet(`<h2>${esc(p.name)}</h2><p class="lead">¿Cuántas has comprado? Se suman a las ${qtyFmt(num(p.qty))} que tienes.</p>
+      <form class="form">${field("b_qty", "Cantidad comprada", suggest, { inputmode: "decimal", full: true })}</form>
+      <div class="actions"><button class="btn primary" type="button" id="saveBought">Sumar al almacén</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
+    $("#saveBought").onclick = async () => { p.qty = num(p.qty) + (num(val("b_qty"), 1) || 1); await save("parts", p.id, strip(p)); closeSheet(); toast(`${p.name}: ahora tienes ${qtyFmt(num(p.qty))}`); };
+  }
+  function boughtShop(x) {
+    const p = x.catalogId ? S.parts.find(pp => pp.catalogId === x.catalogId) : null;
+    if (p) { p.qty = num(p.qty) + num(x.qty, 1); save("parts", p.id, strip(p)).then(() => remove("shop", x.id)); toast(`${p.name}: ahora tienes ${qtyFmt(num(p.qty))}`); return; }
+    const cat = x.catalogId ? S.catalog.find(i => i.id === x.catalogId) : null;
+    partForm({ name: x.name, carId: x.carId, oem: x.oem, ref: (x.alt || "").split(/[,;]/)[0]?.trim() || "", qty: num(x.qty, 1), category: cat ? groupToCat(cat.group) : "Otros", catalogId: x.catalogId || "", notes: x.note || "" }, { fromShop: x.id });
+  }
+  const shopLines = () => [
+    ...S.parts.filter(p => stockState(p) !== "ok").map(p => `• ${p.name}${p.oem ? ` (${p.oem})` : ""} · ${carName(carById(p.carId))}`),
+    ...S.shop.map(x => `• ${x.name}${x.oem ? ` (${x.oem})` : ""}${num(x.qty, 1) > 1 ? ` ×${qtyFmt(num(x.qty))}` : ""} · ${carName(carById(x.carId))}`),
+  ];
+  async function shareShop() {
+    const lines = shopLines(); if (!lines.length) { toast("La lista está vacía"); return; }
+    const text = "Lista de la compra · Garaje Clásico\n" + lines.join("\n");
+    if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e.name === "AbortError") return; } }
+    openSheet(`<h2>Lista de la compra</h2><p class="lead">Cópiala y mándala por WhatsApp o por correo.</p><pre class="share-text" id="shopTxt">${esc(text)}</pre>
+      <div class="actions"><button class="btn primary" type="button" id="copyShop">Copiar la lista</button><button class="btn" type="button" data-close>Cerrar</button></div>`);
+    $("#copyShop").onclick = () => copyText(text, $("#shopTxt"), "Lista copiada");
+  }
+
+  // ---------- Fotos del vehículo y documentos ----------
+  const carPhotos = (c) => [...new Set([c.photoId, ...(c.gallery || [])].filter(Boolean))];
+  async function addCarPhotos(car, files) {
+    let ids = [];
+    for (const f of files) { const id = await storeImage(f); if (id) ids.push(id); }
+    if (!ids.length) return;
+    const fresh = carById(car.id) || car;
+    const data = { ...strip(fresh), gallery: [...(fresh.gallery || []), ...ids.filter((_, i) => fresh.photoId || i > 0)] };
+    if (!fresh.photoId) data.photoId = ids[0];
+    await save("cars", car.id, data);
+    toast(ids.length === 1 ? "Foto añadida" : ids.length + " fotos añadidas");
+  }
+  async function photoSheet(car, id) {
+    const url = await blobUrlAsync(id), isMain = car.photoId === id;
+    openSheet(`<img class="lightbox" src="${esc(url)}" alt="Foto del ${esc(carName(car))}">
+      <div class="actions">${isMain ? `<span class="chip ok">Foto principal</span>` : `<button class="btn primary" type="button" id="mainPh">Usar como foto principal</button>`}<button class="btn danger" type="button" id="delPh">Borrar foto</button><button class="btn" type="button" data-close>Cerrar</button></div>`);
+    $("#mainPh")?.addEventListener("click", async () => {
+      const gallery = carPhotos(car).filter(x => x !== id);
+      await save("cars", car.id, { ...strip(car), photoId: id, gallery }); closeSheet(); toast("Foto principal cambiada");
+    });
+    $("#delPh").onclick = () => confirmSheet("¿Borrar esta foto?", "Se borra del teléfono.", async () => {
+      const rest = carPhotos(car).filter(x => x !== id);
+      await dropBlob(id);
+      await save("cars", car.id, { ...strip(car), photoId: isMain ? (rest[0] || "") : car.photoId, gallery: isMain ? rest.slice(1) : rest.filter(x => x !== car.photoId) });
+      closeSheet(); toast("Foto borrada");
+    });
+  }
+  function docForm(doc = {}, carId) {
+    const isNew = !doc.id;
+    openSheet(`<h2>${isNew ? "Añadir documento" : "Editar documento"}</h2>
+      <form class="form">
+        ${field("o_type", "Tipo", doc.type || "Factura", { options: DOC_TYPES })}
+        ${field("o_date", "Fecha del documento", doc.date || today(), { type: "date" })}
+        ${field("o_title", "Título", doc.title, { full: true, ph: "Póliza 2026, factura del taller…" })}
+        ${field("o_exp", "Caduca el (si aplica)", doc.expiry, { type: "date", full: true })}
+        ${isNew ? `<div class="field full"><label for="o_file">Archivo (foto o PDF)</label><input id="o_file" type="file" accept="image/*,application/pdf"></div>` : ""}
+        ${field("o_notes", "Notas", doc.notes, { area: true, full: true })}
+      </form>
+      <p class="note">Si es el seguro, la ITV o el impuesto, la fecha de caducidad se usa también para los avisos.</p>
+      <div class="actions"><button class="btn primary" type="button" id="saveDoc">Guardar</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
+    $("#saveDoc").onclick = async () => {
+      const data = { ...strip(doc), carId: doc.carId || carId, type: val("o_type"), date: val("o_date"), title: val("o_title"), expiry: val("o_exp"), notes: val("o_notes") };
+      if (isNew) {
+        const f = $("#o_file").files[0]; if (!f) { toast("Elige la foto o el PDF del documento"); return; }
+        if (f.size > 25 * 1024 * 1024) { toast("El archivo pasa de 25 MB. Prueba con una foto."); return; }
+        $("#saveDoc").disabled = true; toast("Guardando el documento…");
+        const isImg = f.type.startsWith("image/");
+        data.fileId = isImg ? await storeImage(f, 2200, "doc-") : await storeBlob(f, "doc-");
+        if (!data.fileId) { $("#saveDoc").disabled = false; return; }
+        data.mime = isImg ? "image/jpeg" : (f.type || "application/octet-stream"); data.fileName = f.name;
+      }
+      const id = await save("docs", doc.id, data);
+      const dateField = DOC_DATE_FIELD[data.type], car = carById(data.carId);
+      if (dateField && data.expiry && car && car[dateField] !== data.expiry) await save("cars", car.id, { ...strip(car), [dateField]: data.expiry });
+      if (id) { closeSheet(); toast(isNew ? "Documento guardado" : "Documento actualizado"); }
+    };
+  }
+  async function docViewer(doc) {
+    const url = await blobUrlAsync(doc.fileId), isImg = (doc.mime || "").startsWith("image/");
+    openSheet(`<h2>${esc(doc.title || doc.type)}</h2><p class="lead">${esc(doc.type)}${doc.date ? " · " + fmtDate(doc.date) : ""}${doc.expiry ? " · caduca el " + fmtDate(doc.expiry) : ""}</p>
+      ${!url ? `<p class="banner">No encuentro el archivo en este teléfono.</p>` : isImg ? `<img class="lightbox" src="${esc(url)}" alt="${esc(doc.title || doc.type)}">` : `<a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg>Abrir ${esc(doc.fileName || "el documento")}</a>`}
+      ${doc.notes ? `<p class="note" style="white-space:pre-wrap">${esc(doc.notes)}</p>` : ""}
+      <div class="actions">${url ? `<button class="btn" type="button" id="shareDoc">Compartir</button>` : ""}<button class="btn" type="button" id="editDoc">Editar</button><button class="btn danger" type="button" id="delDoc">Borrar</button></div>`);
+    $("#shareDoc")?.addEventListener("click", async () => {
+      const b = await getBlob(doc.fileId); if (!b) return;
+      const name = doc.fileName || ((doc.title || doc.type) + (isImg ? ".jpg" : ".pdf"));
+      const file = new File([b], name, { type: doc.mime || b.type });
+      if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: doc.title || doc.type }); } catch {} }
+      else { const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+    });
+    $("#editDoc").onclick = () => docForm(doc);
+    $("#delDoc").onclick = () => confirmSheet("¿Borrar este documento?", "Se borra del teléfono.", async () => { await dropBlob(doc.fileId); await remove("docs", doc.id); closeSheet(); toast("Documento borrado"); });
+  }
+
   function addMenu() {
     openSheet(`
       <h2>Añadir</h2>
       <div class="actions" style="flex-direction:column">
-        <button class="btn primary" type="button" data-add="part"><svg><use href="#i-box"/></svg>Repuesto al almacén</button>
-        <button class="btn" type="button" data-add="car"><svg><use href="#i-car"/></svg>Coche</button>
-        <button class="btn" type="button" data-add="catalog"><svg><use href="#i-gear"/></svg>Pieza al despiece</button>
+        <button class="btn primary" type="button" data-add="log"><svg><use href="#i-wrench"/></svg>Registrar un trabajo</button>
+        <button class="btn" type="button" data-add="part"><svg><use href="#i-box"/></svg>Repuesto al almacén</button>
+        <button class="btn" type="button" data-add="scan"><svg><use href="#i-scan"/></svg>Escanear un código de barras</button>
+        <button class="btn" type="button" data-add="shop"><svg><use href="#i-cart"/></svg>Algo a la lista de la compra</button>
+        <button class="btn" type="button" data-add="car"><svg><use href="#i-car"/></svg>Vehículo</button>
       </div>`);
     $("#sheetBody").onclick = e => {
       const b = e.target.closest("[data-add]"); if (!b) return;
       const k = b.dataset.add;
-      if (k === "car") carForm(); else if (k === "part") partForm(); else S.cars.length ? catalogForm() : (toast("Primero añade un coche"), carForm());
+      if (k === "car") carForm(); else if (k === "part") partForm(); else if (k === "shop") shopForm();
+      else if (k === "scan") { closeSheet(); scanToStock(); }
+      else S.cars.length ? logForm() : (toast("Primero añade un vehículo"), carForm());
     };
   }
 
-  const blobToData = (b) => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
-  async function exportBackup() {
-    const photos = {};
-    for (const c of S.cars) if (c.photoId) { const b = await tx("photos", "readonly", st => st.get(c.photoId)); if (b) photos[c.photoId] = await blobToData(b); }
-    const json = JSON.stringify({ app: "garaje-clasico", version: 1, exportado: new Date().toISOString(), coches: S.cars, repuestos: S.parts, despiecePropio: localCat, fotos: photos });
-    const name = "garaje-clasico-" + new Date().toISOString().slice(0, 10) + ".json";
-    const file = new File([json], name, { type: "application/json" });
-    if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: "Copia de Garaje Clásico" }); return; } catch (e) { if (e.name === "AbortError") return; }
-    }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  }
-  async function importBackup(file) {
-    try {
-      const d = JSON.parse(await file.text());
-      if (d.app !== "garaje-clasico") throw new Error("formato");
-      for (const n of ["cars", "parts", "catalog", "photos"]) await idbClear(n);
-      for (const c of d.coches || []) await idbPut("cars", c);
-      for (const p of d.repuestos || []) await idbPut("parts", p);
-      for (const k of d.despiecePropio || []) await idbPut("catalog", k);
-      for (const [id, url] of Object.entries(d.fotos || {})) await idbPut("photos", await (await fetch(url)).blob(), id);
-      photoCache.clear(); await loadAll(); closeSheet(); render();
-      toast("Copia restaurada");
-    } catch { toast("Ese archivo no es una copia de Garaje Clásico"); }
-  }
   // Enlace de alta: #importar=<json en base64url>. El fragmento nunca llega al servidor.
   async function importFromLink(text = location.hash) {
     const m = String(text).match(/#importar=([A-Za-z0-9_-]+)/);
@@ -407,10 +898,11 @@
   }
 
   function moreMenu() {
+    const last = lsGet("lastBackup");
     openSheet(`
       <h2>Opciones</h2>
-      <p class="lead">${S.cars.length} coches · ${S.parts.length} repuestos · ${S.catalog.length} piezas en despiece</p>
-      <div class="banner">Los datos se guardan solo en este teléfono. Haz una copia de vez en cuando y guárdala en el correo o en Drive.</div>
+      <p class="lead">${S.cars.length} vehículos · ${S.parts.length} repuestos · ${S.logs.length} trabajos · ${S.docs.length} documentos</p>
+      <div class="banner">Los datos se guardan solo en este teléfono. ${last ? "Última copia: " + fmtDate(last.slice(0, 10)) + "." : "Todavía no has hecho ninguna copia."} La app te lo recuerda cada ${BACKUP_DAYS} días.</div>
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" id="exportBtn"><svg><use href="#i-down"/></svg>Hacer copia de seguridad</button>
         <button class="btn" type="button" id="importBtn">Restaurar una copia</button>
@@ -432,7 +924,7 @@
     $("#themeBtn").addEventListener("click", () => {
       const r = document.documentElement, cur = r.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
       r.dataset.theme = cur === "dark" ? "light" : "dark";
-      try { localStorage.setItem("theme", r.dataset.theme); } catch {}
+      lsSet("theme", r.dataset.theme);
     });
   }
 
@@ -458,17 +950,19 @@
   // ---------- Vistas ----------
   const stepper = (p) => `<div class="stepper ${stockState(p)}" aria-label="Cantidad"><button type="button" data-step="-1" data-id="${p.id}" aria-label="Quitar uno">−</button><output>${qtyFmt(num(p.qty))}</output><button type="button" data-step="1" data-id="${p.id}" aria-label="Añadir uno">+</button></div>`;
   function partRow(p, showCar = true) {
-    const car = carById(p.carId);
-    const st = stockState(p);
+    const car = carById(p.carId), st = stockState(p), th = blobUrl(p.photoId);
     return `<div class="row">
-      <button class="row-main" type="button" data-part="${p.id}">
-        <strong>${esc(p.name)}</strong>
-        <span class="row-meta">
-          ${p.oem ? `<span class="mono">${esc(p.oem)}</span>` : (p.ref ? `<span class="mono">${esc(p.ref)}</span>` : "")}
-          ${p.brand ? `<span>${esc(p.brand)}</span>` : ""}
-          ${showCar ? `<span>${esc(car ? carName(car) : "General")}</span>` : ""}
-          ${p.location ? `<span>${esc(p.location)}</span>` : ""}
-          ${st === "zero" ? `<span class="chip crit">Agotado</span>` : st === "low" ? `<span class="chip warn">Reponer</span>` : ""}
+      <button class="row-main${p.photoId ? " has-thumb" : ""}" type="button" data-part="${p.id}">
+        ${p.photoId ? `<img class="thumb" src="${esc(th)}" alt="">` : ""}
+        <span class="row-text">
+          <strong>${esc(p.name)}</strong>
+          <span class="row-meta">
+            ${p.oem ? `<span class="mono">${esc(p.oem)}</span>` : (p.ref ? `<span class="mono">${esc(p.ref)}</span>` : "")}
+            ${p.brand ? `<span>${esc(p.brand)}</span>` : ""}
+            ${showCar ? `<span>${esc(car ? carName(car) : "General")}</span>` : ""}
+            ${p.location ? `<span>${esc(p.location)}</span>` : ""}
+            ${st === "zero" ? `<span class="chip crit">Agotado</span>` : st === "low" ? `<span class="chip warn">Reponer</span>` : ""}
+          </span>
         </span>
       </button>
       ${stepper(p)}
@@ -487,7 +981,7 @@
         <strong>${esc(it.name)}</strong>
         <span class="row-meta">
           ${it.oem ? `<span class="mono">${esc(it.oem)}</span>` : `<span>Sin código</span>`}
-          ${it.perCar ? `<span>${esc(it.perCar)} en el coche</span>` : ""}
+          ${it.perCar ? `<span>${esc(it.perCar)} en el vehículo</span>` : ""}
           ${showCar && car ? `<span>${esc(carName(car))}</span>` : ""}
           ${have.length ? `<span class="chip ok">Tienes ${qtyFmt(qty)}</span>` : ""}
           ${it.verified === false ? `<span class="chip warn">Verificar</span>` : ""}
@@ -506,7 +1000,6 @@
     const order = [...GROUPS, ...Object.keys(by).filter(g => !GROUPS.includes(g))];
     return `<div class="groups">${order.filter(g => by[g]).map((g, idx) => `<details class="group"${idx === 0 || S.q ? " open" : ""}><summary>${esc(g)}<span class="count">${by[g].length} ${by[g].length === 1 ? "pieza" : "piezas"}</span></summary>${by[g].sort((a, b) => a.name.localeCompare(b.name, "es")).map(i => catRow(i, showCar)).join("")}</details>`).join("")}</div>`;
   }
-  const isMoto = (c) => c.kind === "moto";
   const carVisual = (c, big = false) => {
     const url = photoUrl(c), ref = url && !ownPhoto(c);
     return `<div class="car-photo${big ? " big" : ""}${url ? "" : " no-photo"}">
@@ -522,80 +1015,157 @@
       ${ref ? `<span class="credit">Foto de referencia · Wikipedia</span>` : ""}
     </div>`;
   };
+  const alertRow = (a) => `<button class="due-row" type="button" data-alert-car="${a.car.id}"><span class="due-main"><span class="due-name">${esc(a.label)} ${pill(a.state)}</span><span class="due-when">${esc(carName(a.car))} · ${esc(cap(a.text))}</span></span><svg class="chev" aria-hidden="true"><use href="#i-back"/></svg></button>`;
 
   function viewGarage() {
-    const low = S.parts.filter(p => stockState(p) !== "ok").length;
+    const low = S.parts.filter(p => stockState(p) !== "ok").length + S.shop.length;
     if (!S.cars.length) {
       return `${S.ready ? "" : `<p class="note">Cargando el garaje…</p>`}
         <div class="empty">
           <svg width="44" height="44" style="color:var(--brass)"><use href="#i-car"/></svg>
           <h3>El garaje está vacío</h3>
-          <p>Añade el primer coche con su matrícula, bastidor y código de motor. Después podrás guardar sus repuestos y consultar su despiece.</p>
-          <button class="btn primary" type="button" data-add-car>Añadir coche</button>
+          <p>Añade el primer vehículo con su matrícula, bastidor y código de motor. Después podrás guardar sus repuestos, su mantenimiento y sus papeles.</p>
+          <button class="btn primary" type="button" data-add-car>Añadir vehículo</button>
         </div>`;
     }
+    const alerts = allAlerts(), shown = S.allAlerts ? alerts : alerts.slice(0, 5);
+    const backup = backupNeeded();
+    const anyTracking = S.logs.length || S.cars.some(c => c.itvDate || c.insuranceDate || c.taxDate);
     return `
+      ${backup ? `<div class="backup"><div><strong>Copia de seguridad</strong><span>${esc(backup)} Los datos solo están en este teléfono: guárdala en Drive, en el correo o en WhatsApp.</span></div><div class="actions"><button class="btn primary" type="button" data-backup><svg><use href="#i-down"/></svg>Hacer copia ahora</button><button class="btn" type="button" data-snooze>Dentro de una semana</button></div></div>` : ""}
       <div class="gauges">
-        <div class="gauge"><b>${S.cars.length}</b><span>Vehículos</span></div>
-        <div class="gauge"><b>${S.parts.length}</b><span>Repuestos</span></div>
-        <div class="gauge ${low ? "alert" : ""}"><b>${low}</b><span>Por reponer</span></div>
+        <button class="gauge" type="button" data-goto="garage"><b>${S.cars.length}</b><span>Vehículos</span></button>
+        <button class="gauge ${alerts.length ? "alert" : ""}" type="button" data-goto-alerts><b>${alerts.length}</b><span>Avisos</span></button>
+        <button class="gauge ${low ? "alert" : ""}" type="button" data-goto-shop><b>${low}</b><span>Por comprar</span></button>
       </div>
+      ${alerts.length ? `<div class="section-head" id="avisos"><h2>Avisos</h2><span class="eyebrow">${alerts.length}</span></div>
+        <div class="list">${shown.map(alertRow).join("")}</div>
+        ${alerts.length > shown.length ? `<button class="btn" type="button" data-all-alerts>Ver los ${alerts.length} avisos</button>` : ""}`
+      : anyTracking ? `<p class="ok-line">${pill("ok", "Todo al día")} Ningún papel ni mantenimiento pendiente en los próximos 30 días.</p>`
+      : `<p class="note">Registra el último mantenimiento y las fechas de ITV y seguro de cada vehículo, y aquí verás lo que toca.</p>`}
       <div class="section-head"><h2>La colección</h2><span class="eyebrow">${S.cars.filter(c => !isMoto(c)).length} coches · ${S.cars.filter(isMoto).length} motos</span></div>
       ${S.cars.some(isMoto) ? `<div class="filters">${[["all", "Todos"], ["coche", "Coches"], ["moto", "Motos"]].map(([k, l]) => `<button class="filter" type="button" data-kind="${k}" aria-pressed="${S.kind === k}">${l}</button>`).join("")}</div>` : ""}
       <div class="cars">${[...S.cars].filter(c => S.kind === "all" || (S.kind === "moto") === isMoto(c)).sort((a, b) => num(a.year, 9999) - num(b.year, 9999)).map(c => {
-        const parts = S.parts.filter(p => p.carId === c.id), cat = S.catalog.filter(i => i.carId === c.id);
-        const lowC = parts.filter(p => stockState(p) !== "ok").length;
+        const parts = S.parts.filter(p => p.carId === c.id), al = alertsFor(c);
+        const over = al.filter(a => a.state === "overdue").length;
         return `<button class="car" type="button" data-car="${c.id}">
           ${carVisual(c)}
           <div class="car-body">
             <div class="chips">
+              ${al.length ? `<span class="chip ${over ? "crit" : "warn"}">${al.length} ${al.length === 1 ? "aviso" : "avisos"}</span>` : ""}
               <span class="chip">${parts.length} ${parts.length === 1 ? "repuesto" : "repuestos"}</span>
-              <span class="chip">${cat.length} ${cat.length === 1 ? "pieza" : "piezas"} de despiece</span>
-              ${lowC ? `<span class="chip warn">${lowC} por reponer</span>` : ""}
+              ${c.km ? `<span class="chip">${kmFmt(c.km)}</span>` : ""}
+              ${carPhotos(c).length > 1 ? `<span class="chip">${carPhotos(c).length} fotos</span>` : ""}
             </div>
           </div>
         </button>`;
       }).join("")}</div>`;
   }
 
+  function viewMaint(c) {
+    const dates = DATE_FIELDS.map(([f, label]) => {
+      const s = dateStatus(c, f);
+      return `<button class="due-row" type="button" data-dates><span class="due-main"><span class="due-name">${label} ${s ? pill(s.state) : pill("none", "Sin fecha")}</span><span class="due-when">${s ? cap((s.days < 0 ? "venció " : "vence ") + relDays(s.days)) + " · " + fmtDate(s.date) : "Toca para poner la fecha"}${f === "insuranceDate" && c.insurer ? " · " + esc(c.insurer) : ""}</span></span><svg class="chev" aria-hidden="true"><use href="#i-back"/></svg></button>`;
+    }).join("");
+    const tasks = taskList(c).filter(t => !t.off).map(t => {
+      const s = taskStatus(c, t);
+      return `<div class="due-row"><span class="due-main"><span class="due-name">${esc(t.name)} ${pill(s.state)}</span>
+        <span class="due-when">${s.last ? "Último: " + fmtDate(s.last.date) + (s.last.km ? " · " + kmFmt(s.last.km) : "") : "Nunca registrado · " + esc(intervalText(t))}</span>
+        ${s.last ? `<span class="due-when">${esc(cap(dueText(s)))}</span>` : ""}</span>
+        <button class="mini" type="button" data-log-task="${t.k}">Registrar</button></div>`;
+    }).join("");
+    const logs = carLogs(c.id);
+    return `
+      <div class="section-head result-head"><span class="eyebrow">Papeles</span></div>
+      <div class="list">${dates}</div>
+      <div class="section-head result-head"><span class="eyebrow">Mantenimiento${c.km ? " · " + kmFmt(c.km) : ""}</span><button class="link" type="button" data-km>${c.km ? "Actualizar km" : "Poner los km"}</button></div>
+      <div class="list">${tasks}</div>
+      <div class="actions"><button class="btn primary" type="button" data-new-log><svg><use href="#i-wrench"/></svg>Registrar trabajo</button><button class="btn" type="button" data-intervals>Ajustar intervalos</button></div>
+      <div class="section-head result-head"><span class="eyebrow">Historial · ${logs.length}</span></div>
+      ${logs.length ? `<div class="timeline">${logs.map(l => `<button class="log" type="button" data-log="${l.id}">
+          <span class="log-date">${fmtDate(l.date)}${l.km ? " · " + kmFmt(l.km) : ""}</span>
+          <strong>${esc(l.title || taskNames(l.tasks) || "Trabajo")}</strong>
+          ${l.title && l.tasks?.length ? `<span class="log-meta">${esc(taskNames(l.tasks))}</span>` : ""}
+          ${l.parts?.length ? `<span class="log-meta">Piezas: ${esc(l.parts.map(p => p.name + (num(p.qty, 1) !== 1 ? " ×" + qtyFmt(num(p.qty)) : "")).join(", "))}</span>` : ""}
+          ${l.cost ? `<span class="log-meta">${esc(l.cost)} €</span>` : ""}
+        </button>`).join("")}</div>`
+      : `<p class="note">Todavía no hay trabajos registrados. Apunta el último cambio de aceite que recuerdes y la app empezará a contar desde ahí.</p>`}`;
+  }
+  function viewDocs(c) {
+    const docs = S.docs.filter(d => d.carId === c.id).sort((a, b) => DOC_TYPES.indexOf(a.type) - DOC_TYPES.indexOf(b.type) || (b.date || "").localeCompare(a.date || ""));
+    if (!docs.length) return `<div class="empty"><svg width="40" height="40" style="color:var(--brass)"><use href="#i-doc"/></svg><h3>Sin documentos</h3><p>Guarda aquí la ficha técnica, el permiso de circulación, el seguro, la ITV y las facturas: con una foto o un PDF.</p><button class="btn primary" type="button" data-new-doc>Añadir documento</button></div>`;
+    return `<div class="docs">${docs.map(d => {
+      const img = (d.mime || "").startsWith("image/"), exp = d.expiry ? daysUntil(d.expiry) : null;
+      return `<button class="doc" type="button" data-doc="${d.id}">${img ? `<img src="${esc(blobUrl(d.fileId))}" alt="">` : `<span class="doc-icon">${d.mime === "application/pdf" ? "PDF" : "DOC"}</span>`}
+        <span class="doc-text"><strong>${esc(d.title || d.type)}</strong><span>${esc(d.type)}${d.date ? " · " + fmtDate(d.date) : ""}</span>${exp !== null ? `<span>${pill(exp < 0 ? "overdue" : exp <= 30 ? "soon" : "ok", exp < 0 ? "Caducado" : "Caduca " + relDays(exp))}</span>` : ""}</span></button>`;
+    }).join("")}</div>
+    <div class="actions"><button class="btn primary" type="button" data-new-doc>Añadir documento</button></div>`;
+  }
+  function viewInfo(c) {
+    const spec = [["Matrícula", c.plate], ["Año", c.year], ["Bastidor", c.vin], ["Motor", c.engine], ["Color", c.color], ["Kilómetros", c.km ? kmFmt(c.km) : ""]];
+    const photos = carPhotos(c);
+    return `
+      <div class="section-head result-head"><span class="eyebrow">Fotos · ${photos.length}</span></div>
+      <div class="gallery">${photos.map(id => `<button class="g-item" type="button" data-photo="${id}"><img src="${esc(blobUrl(id))}" alt="">${id === c.photoId ? `<span class="main-tag">Principal</span>` : ""}</button>`).join("")}
+        <label class="g-add"><input type="file" accept="image/*" multiple id="galleryInput" hidden><svg><use href="#i-cam"/></svg>Añadir fotos</label></div>
+      <div class="hero"><dl class="spec" style="border-top:0">${spec.map(([k, v]) => `<div><dt>${k}</dt><dd class="${["Matrícula","Bastidor","Motor"].includes(k) ? "mono" : ""}">${esc(v || "—")}</dd></div>`).join("")}</dl></div>
+      ${c.notes ? `<div class="list"><div class="row" style="grid-template-columns:1fr"><span style="white-space:pre-wrap">${esc(c.notes)}</span></div></div>` : ""}
+      <div class="eyebrow">Despiece oficial</div>${linksBlock(c)}
+      <div class="actions"><button class="btn" type="button" data-edit-car>Editar ficha</button></div>`;
+  }
+  const SUBTABS = [["maint", "Mantenimiento"], ["parts", "Repuestos"], ["catalog", "Despiece"], ["docs", "Documentos"], ["info", "Ficha y fotos"]];
   function viewCar() {
     const c = carById(S.carId);
     if (!c) { S.tab = "garage"; return viewGarage(); }
     const parts = S.parts.filter(p => p.carId === c.id).sort((a, b) => a.name.localeCompare(b.name, "es"));
     const general = S.parts.filter(p => !p.carId);
     const cat = S.catalog.filter(i => i.carId === c.id);
-    const spec = [["Matrícula", c.plate], ["Año", c.year], ["Bastidor", c.vin], ["Motor", c.engine], ["Color", c.color], ["Kilómetros", c.km ? Number(c.km).toLocaleString("es-ES") + " km" : ""]];
+    const al = alertsFor(c);
     let body = "";
-    if (S.carTab === "parts") {
+    if (S.carTab === "maint") body = viewMaint(c);
+    else if (S.carTab === "parts") {
       body = parts.length ? `<div class="list">${parts.map(p => partRow(p, false)).join("")}</div>`
-        : `<div class="empty"><h3>Sin repuestos todavía</h3><p>Guarda aquí el aceite, los filtros y las piezas que tienes para este coche.</p><button class="btn primary" type="button" data-new-part>Añadir repuesto</button></div>`;
-      if (general.length) body += `<div class="section-head result-head"><span class="eyebrow">Compartidos con otros coches</span></div><div class="list">${general.map(p => partRow(p, false)).join("")}</div>`;
+        : `<div class="empty"><h3>Sin repuestos todavía</h3><p>Guarda aquí el aceite, los filtros y las piezas que tienes para este vehículo.</p><button class="btn primary" type="button" data-new-part>Añadir repuesto</button></div>`;
+      if (general.length) body += `<div class="section-head result-head"><span class="eyebrow">Compartidos con otros vehículos</span></div><div class="list">${general.map(p => partRow(p, false)).join("")}</div>`;
     } else if (S.carTab === "catalog") {
-      body = catIntro(c, cat) + (cat.length ? catalogGroups(cat) : `<div class="empty"><h3>Despiece sin cargar</h3><p>Aquí aparecerán las piezas del coche con su referencia OEM, agrupadas por motor, frenos, encendido…</p><button class="btn" type="button" data-new-cat>Añadir pieza a mano</button></div>`);
-    } else {
-      body = `<div class="hero"><dl class="spec" style="border-top:0">${spec.map(([k, v]) => `<div><dt>${k}</dt><dd class="${["Matrícula","Bastidor","Motor"].includes(k) ? "mono" : ""}">${esc(v || "—")}</dd></div>`).join("")}</dl></div>
-        ${c.notes ? `<div class="list"><div class="row" style="grid-template-columns:1fr"><span style="white-space:pre-wrap">${esc(c.notes)}</span></div></div>` : ""}
-        <div class="eyebrow">Despiece oficial</div>${linksBlock(c)}
-        <div class="actions"><button class="btn" type="button" data-edit-car>Editar ficha</button></div>`;
-    }
+      body = catIntro(c, cat) + (cat.length ? catalogGroups(cat) : `<div class="empty"><h3>Despiece sin cargar</h3><p>Aquí aparecerán las piezas del vehículo con su referencia OEM, agrupadas por motor, frenos, encendido…</p><button class="btn" type="button" data-new-cat>Añadir pieza a mano</button></div>`);
+    } else if (S.carTab === "docs") body = viewDocs(c);
+    else body = viewInfo(c);
     return `
       <button class="back" type="button" data-go="garage"><svg><use href="#i-back"/></svg>Garaje</button>
       <div class="hero">${carVisual(c, true)}</div>
       <div class="facts">
         <div><span>Año</span><b>${esc(c.year || "—")}</b></div>
-        <div><span>Motor</span><b>${esc(c.engine || "—")}</b></div>
+        <div><span>Km</span><b>${c.km ? Math.round(num(c.km)).toLocaleString("es-ES") : "—"}</b></div>
         <div><span>Repuestos</span><b>${parts.length}</b></div>
-        <div><span>Despiece</span><b>${cat.length}</b></div>
+        <div class="${al.length ? "warn" : ""}"><span>Avisos</span><b>${al.length}</b></div>
       </div>
-      <div class="seg" role="group" aria-label="Vista del coche">
-        <button type="button" data-cartab="parts" aria-pressed="${S.carTab === "parts"}">Repuestos</button>
-        <button type="button" data-cartab="catalog" aria-pressed="${S.carTab === "catalog"}">Despiece</button>
-        <button type="button" data-cartab="info" aria-pressed="${S.carTab === "info"}">Ficha</button>
-      </div>
+      <div class="subtabs" role="tablist" aria-label="Secciones del vehículo">${SUBTABS.map(([k, l]) => `<button type="button" role="tab" data-cartab="${k}" aria-pressed="${S.carTab === k}" aria-selected="${S.carTab === k}">${l}</button>`).join("")}</div>
       ${body}`;
   }
 
+  function viewShop() {
+    const auto = S.parts.filter(p => stockState(p) !== "ok").sort((a, b) => a.name.localeCompare(b.name, "es"));
+    const manual = [...S.shop].sort((a, b) => a.name.localeCompare(b.name, "es"));
+    const autoRows = auto.map(p => `<div class="row"><button class="row-main" type="button" data-part="${p.id}"><strong>${esc(p.name)}</strong><span class="row-meta">${p.oem ? `<span class="mono">${esc(p.oem)}</span>` : ""}<span>${esc(carName(carById(p.carId)))}</span><span class="chip ${stockState(p) === "zero" ? "crit" : "warn"}">${stockState(p) === "zero" ? "Agotado" : "Quedan " + qtyFmt(num(p.qty))}</span>${p.minQty ? `<span>mínimo ${qtyFmt(num(p.minQty))}</span>` : ""}</span></button>
+      <div class="row-actions"><button class="mini" type="button" data-web-part="${p.id}" aria-label="Buscar en tiendas"><svg><use href="#i-web"/></svg></button><button class="mini brass" type="button" data-bought-part="${p.id}">Comprado</button></div></div>`).join("");
+    const manRows = manual.map(x => `<div class="row"><button class="row-main" type="button" data-shop="${x.id}"><strong>${esc(x.name)}${num(x.qty, 1) > 1 ? ` ×${qtyFmt(num(x.qty))}` : ""}</strong><span class="row-meta">${x.oem ? `<span class="mono">${esc(x.oem)}</span>` : ""}<span>${esc(carName(carById(x.carId)))}</span>${x.note ? `<span>${esc(x.note)}</span>` : ""}</span></button>
+      <div class="row-actions"><button class="mini" type="button" data-web-shop="${x.id}" aria-label="Buscar en tiendas"><svg><use href="#i-web"/></svg></button><button class="mini brass" type="button" data-bought-shop="${x.id}">Comprado</button></div></div>`).join("");
+    return `
+      ${auto.length ? `<div class="section-head result-head"><span class="eyebrow">Por debajo del mínimo · ${auto.length}</span></div><div class="list">${autoRows}</div>` : ""}
+      ${manual.length ? `<div class="section-head result-head"><span class="eyebrow">Apuntado · ${manual.length}</span></div><div class="list">${manRows}</div>` : ""}
+      ${!auto.length && !manual.length ? `<div class="empty"><svg width="40" height="40" style="color:var(--brass)"><use href="#i-cart"/></svg><h3>No falta nada</h3><p>Los repuestos que bajen del mínimo aparecerán aquí solos. También puedes apuntar cosas a mano o desde el despiece.</p></div>` : ""}
+      <div class="actions"><button class="btn primary" type="button" data-new-shop><svg><use href="#i-plus"/></svg>Apuntar algo</button>${auto.length || manual.length ? `<button class="btn" type="button" data-share-shop>Compartir la lista</button>` : ""}</div>`;
+  }
   function viewStock() {
+    const toBuy = S.parts.filter(p => stockState(p) !== "ok").length + S.shop.length;
+    const head = `
+      <div class="section-head"><h2>Almacén</h2><button class="mini" type="button" data-scan><svg><use href="#i-scan"/></svg>Escanear</button></div>
+      <div class="seg two" role="group" aria-label="Vista del almacén">
+        <button type="button" data-sv="inv" aria-pressed="${S.stockView === "inv"}">Inventario · ${S.parts.length}</button>
+        <button type="button" data-sv="shop" aria-pressed="${S.stockView === "shop"}">Lista de la compra${toBuy ? " · " + toBuy : ""}</button>
+      </div>`;
+    if (S.stockView === "shop") return head + viewShop();
     let items = [...S.parts];
     if (S.stockCar !== "all") items = items.filter(p => (p.carId || "") === S.stockCar);
     if (S.stockFilter === "low") items = items.filter(p => stockState(p) !== "ok");
@@ -606,24 +1176,22 @@
     items.forEach(p => (byCat[p.category || "Otros"] ||= []).push(p));
     const f = (k, label) => `<button class="filter" type="button" data-sf="${esc(k)}" aria-pressed="${S.stockFilter === k}">${esc(label)}</button>`;
     const fc = (k, label) => `<button class="filter" type="button" data-sc="${esc(k)}" aria-pressed="${S.stockCar === k}">${esc(label)}</button>`;
-    return `
-      <div class="section-head"><h2>Almacén</h2><span class="eyebrow">${S.parts.length} referencias</span></div>
-      ${S.parts.length ? `
-        <div class="filters" aria-label="Filtrar por coche">${fc("all", "Todos los coches")}${S.cars.map(c => fc(c.id, carName(c))).join("")}${fc("", "General")}</div>
+    return head + (S.parts.length ? `
+        <div class="filters" aria-label="Filtrar por vehículo">${fc("all", "Todos los vehículos")}${S.cars.map(c => fc(c.id, carName(c))).join("")}${fc("", "General")}</div>
         <div class="filters" aria-label="Filtrar por categoría">${f("all", "Todo")}${f("low", "Por reponer")}${usedCats.map(c => f(c, c)).join("")}</div>
         ${items.length ? Object.keys(byCat).map(cat => `<div class="section-head result-head"><span class="eyebrow">${esc(cat)}</span></div><div class="list">${byCat[cat].map(p => partRow(p)).join("")}</div>`).join("") : `<p class="note">Nada con estos filtros.</p>`}`
-      : `<div class="empty"><svg width="44" height="44" style="color:var(--brass)"><use href="#i-box"/></svg><h3>Almacén vacío</h3><p>Apunta lo que hay en el taller: bidones de aceite, filtros, bujías, pastillas… con su cantidad y dónde está guardado.</p><button class="btn primary" type="button" data-new-part>Añadir repuesto</button></div>`}`;
+      : `<div class="empty"><svg width="44" height="44" style="color:var(--brass)"><use href="#i-box"/></svg><h3>Almacén vacío</h3><p>Apunta lo que hay en el taller: bidones de aceite, filtros, bujías, pastillas… con su cantidad y dónde está guardado. Si la caja tiene código de barras, escanéalo.</p><div class="actions"><button class="btn primary" type="button" data-new-part>Añadir repuesto</button><button class="btn" type="button" data-scan><svg><use href="#i-scan"/></svg>Escanear</button></div></div>`);
   }
 
   function viewCatalog() {
-    if (!S.cars.length) return `<div class="empty"><h3>Sin coches</h3><p>Añade un coche para ver y gestionar su despiece.</p><button class="btn primary" type="button" data-add-car>Añadir coche</button></div>`;
+    if (!S.cars.length) return `<div class="empty"><h3>Sin vehículos</h3><p>Añade un vehículo para ver y gestionar su despiece.</p><button class="btn primary" type="button" data-add-car>Añadir vehículo</button></div>`;
     if (!S.catCar || !carById(S.catCar)) S.catCar = S.cars[0].id;
     const items = S.catalog.filter(i => i.carId === S.catCar);
     return `
       <div class="section-head"><h2>Despiece</h2><span class="eyebrow">${items.length} piezas</span></div>
       <div class="filters">${S.cars.map(c => `<button class="filter" type="button" data-cc="${c.id}" aria-pressed="${S.catCar === c.id}">${esc(carName(c))}</button>`).join("")}</div>
       ${catIntro(carById(S.catCar), items)}
-      ${items.length ? catalogGroups(items) : `<div class="empty"><h3>Despiece sin cargar</h3><p>Las piezas de este coche con sus códigos OEM aparecerán aquí por grupos.</p><button class="btn" type="button" data-new-cat>Añadir pieza a mano</button></div>`}`;
+      ${items.length ? catalogGroups(items) : `<div class="empty"><h3>Despiece sin cargar</h3><p>Las piezas de este vehículo con sus códigos OEM aparecerán aquí por grupos.</p><button class="btn" type="button" data-new-cat>Añadir pieza a mano</button></div>`}`;
   }
 
   function viewSearch() {
@@ -631,18 +1199,20 @@
     let res = "";
     if (q.length >= 2) {
       const hit = (fields) => fields.some(v => norm(v).includes(q) || (qc.length > 2 && codeKey(v).includes(qc)));
-      const parts = S.parts.filter(p => hit([p.name, p.oem, p.ref, p.brand, p.location, p.category, p.notes]));
+      const parts = S.parts.filter(p => hit([p.name, p.oem, p.ref, p.barcode, p.brand, p.location, p.category, p.notes]));
       const cat = S.catalog.filter(i => hit([i.name, i.oem, i.alt, i.group, i.notes]));
       const cars = S.cars.filter(c => hit([c.make, c.model, c.version, c.plate, c.vin, c.engine]));
+      const logs = S.logs.filter(l => hit([l.title, l.notes, taskNames(l.tasks), ...(l.parts || []).map(p => p.name)]));
       res = `
-        ${cars.length ? `<div class="section-head result-head"><span class="eyebrow">Coches</span></div><div class="list">${cars.map(c => `<div class="row"><button class="row-main" type="button" data-car="${c.id}"><strong>${esc(carName(c))}</strong><span class="row-meta"><span>${esc(c.year)}</span><span class="mono">${esc(c.plate)}</span></span></button></div>`).join("")}</div>` : ""}
+        ${cars.length ? `<div class="section-head result-head"><span class="eyebrow">Vehículos</span></div><div class="list">${cars.map(c => `<div class="row"><button class="row-main" type="button" data-car="${c.id}"><strong>${esc(carName(c))}</strong><span class="row-meta"><span>${esc(c.year)}</span><span class="mono">${esc(c.plate)}</span></span></button></div>`).join("")}</div>` : ""}
         <div class="section-head result-head"><span class="eyebrow">En mi almacén · ${parts.length}</span></div>
         ${parts.length ? `<div class="list">${parts.map(p => partRow(p)).join("")}</div>` : `<p class="note">No tienes nada guardado que coincida.</p>`}
         <div class="section-head result-head"><span class="eyebrow">En el despiece · ${cat.length}</span></div>
         ${cat.length ? `<div class="list">${cat.slice(0, 80).map(i => catRow(i, true)).join("")}</div>` : `<p class="note">Ninguna pieza del despiece coincide.</p>`}
+        ${logs.length ? `<div class="section-head result-head"><span class="eyebrow">En el historial · ${logs.length}</span></div><div class="list">${logs.slice(0, 30).map(l => `<div class="row"><button class="row-main" type="button" data-open-log="${l.id}"><strong>${esc(l.title || taskNames(l.tasks))}</strong><span class="row-meta"><span>${fmtDate(l.date)}</span><span>${esc(carName(carById(l.carId)))}</span></span></button></div>`).join("")}</div>` : ""}
         <button class="btn" type="button" id="webFree"><svg><use href="#i-web"/></svg>Buscar «${esc(S.q.trim())}» en tiendas</button>`;
     } else {
-      res = `<p class="note">Busca por nombre de pieza, código OEM, referencia equivalente, matrícula o ubicación. Los códigos se encuentran aunque escribas sin guiones ni espacios.</p>`;
+      res = `<p class="note">Busca por nombre de pieza, código OEM, referencia equivalente, código de barras, matrícula o ubicación. Los códigos se encuentran aunque escribas sin guiones ni espacios.</p>`;
     }
     return `
       <div class="section-head"><h2>Buscar</h2></div>
@@ -659,18 +1229,22 @@
     v.innerHTML = banner + html;
     document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-current", (t.dataset.tab === S.tab || (S.tab === "car" && t.dataset.tab === "garage")) ? "page" : "false"));
     if (focusQ) { const q = $("#q"); q.focus(); try { q.setSelectionRange(caret, caret); } catch {} }
-    try { localStorage.setItem("ui", JSON.stringify({ tab: S.tab === "car" ? "garage" : S.tab, catCar: S.catCar })); } catch {}
+    lsSet("ui", JSON.stringify({ tab: S.tab === "car" ? "garage" : S.tab, catCar: S.catCar, stockView: S.stockView }));
   }
 
   // ---------- Eventos ----------
+  const goCar = (id, tab = "maint") => { S.tab = "car"; S.carId = id; S.carTab = tab; render(); scrollTo({ top: 0 }); };
   document.querySelector(".tabbar").addEventListener("click", e => {
     const t = e.target.closest("[data-tab]"); if (!t) return;
     S.tab = t.dataset.tab; render(); scrollTo({ top: 0 });
     if (S.tab === "search") setTimeout(() => $("#q")?.focus(), 50);
   });
   $("#fab").addEventListener("click", () => {
-    if (S.tab === "car") { S.carTab === "catalog" ? catalogForm() : partForm(); return; }
-    if (S.tab === "stock") return partForm();
+    if (S.tab === "car") {
+      const c = carById(S.carId);
+      return ({ maint: () => logForm({}, { carId: S.carId }), parts: () => partForm(), catalog: () => catalogForm(), docs: () => docForm({}, S.carId), info: () => carForm(c) })[S.carTab]?.();
+    }
+    if (S.tab === "stock") return S.stockView === "shop" ? shopForm() : partForm();
     if (S.tab === "catalog") return catalogForm();
     addMenu();
   });
@@ -679,19 +1253,48 @@
   $("#view").addEventListener("input", e => {
     if (e.target.id === "q") { S.q = e.target.value; const r = $("#results"); const tmp = document.createElement("div"); tmp.innerHTML = viewSearch(); r.innerHTML = tmp.querySelector("#results").innerHTML; }
   });
+  $("#view").addEventListener("change", async e => {
+    if (e.target.id === "galleryInput") { const files = [...e.target.files]; e.target.value = ""; const c = carById(S.carId); if (c && files.length) { toast("Guardando fotos…"); await addCarPhotos(c, files); } }
+  });
 
   let pending = {};
   $("#view").addEventListener("click", e => {
     const el = e.target.closest("button"); if (!el) return;
-    const d = el.dataset;
-    if (d.car) { S.tab = "car"; S.carId = d.car; S.carTab = "parts"; render(); scrollTo({ top: 0 }); }
+    const d = el.dataset, car = carById(S.carId);
+    if (d.car) goCar(d.car);
+    else if (d.alertCar) goCar(d.alertCar);
     else if (d.go) { S.tab = d.go; render(); }
+    else if (d.goto) { S.tab = d.goto; render(); }
+    else if ("gotoShop" in d) { S.tab = "stock"; S.stockView = "shop"; render(); scrollTo({ top: 0 }); }
+    else if ("gotoAlerts" in d) { const a = $("#avisos"); if (a) a.scrollIntoView({ behavior: "smooth", block: "start" }); else toast("No hay avisos"); }
+    else if ("allAlerts" in d) { S.allAlerts = true; render(); }
+    else if ("backup" in d) exportBackup();
+    else if ("snooze" in d) { lsSet("backupSnooze", new Date(Date.now() + 7 * 86400000).toISOString()); render(); toast("Te lo recuerdo dentro de una semana"); }
     else if ("addCar" in d) carForm();
-    else if ("editCar" in d) carForm(carById(S.carId));
+    else if ("editCar" in d) carForm(car);
     else if ("newPart" in d) partForm();
     else if ("newCat" in d) catalogForm();
+    else if ("newLog" in d) logForm({}, { carId: S.carId });
+    else if (d.logTask) logForm({}, { carId: S.carId, tasks: [d.logTask], title: "" });
+    else if (d.log) logForm(S.logs.find(l => l.id === d.log));
+    else if (d.openLog) { const l = S.logs.find(x => x.id === d.openLog); if (l) logForm(l); }
+    else if ("intervals" in d) intervalsForm(car);
+    else if ("dates" in d) datesForm(car);
+    else if ("km" in d) kmForm(car);
+    else if ("newDoc" in d) docForm({}, S.carId);
+    else if (d.doc) { const x = S.docs.find(o => o.id === d.doc); if (x) docViewer(x); }
+    else if (d.photo) photoSheet(car, d.photo);
     else if (d.cartab) { S.carTab = d.cartab; render(); }
+    else if (d.sv) { S.stockView = d.sv; render(); }
+    else if ("scan" in d) scanToStock();
     else if (d.part) partForm(S.parts.find(p => p.id === d.part));
+    else if (d.webPart) openWeb(S.parts.find(p => p.id === d.webPart));
+    else if (d.boughtPart) boughtPart(S.parts.find(p => p.id === d.boughtPart));
+    else if (d.shop) shopForm(S.shop.find(x => x.id === d.shop));
+    else if (d.webShop) { const x = S.shop.find(o => o.id === d.webShop); if (x) openWeb({ name: x.name, carId: x.carId, oem: x.oem, ref: x.alt }); }
+    else if (d.boughtShop) { const x = S.shop.find(o => o.id === d.boughtShop); if (x) boughtShop(x); }
+    else if ("newShop" in d) shopForm();
+    else if ("shareShop" in d) shareShop();
     else if (d.cat) catalogForm(S.catalog.find(i => i.id === d.cat));
     else if (d.webCat) openWeb(S.catalog.find(i => i.id === d.webCat));
     else if (d.stockCat) {
@@ -706,8 +1309,7 @@
     else if (d.kind) { S.kind = d.kind; render(); }
     else if (d.step) {
       const p = S.parts.find(x => x.id === d.id); if (!p) return;
-      const next = Math.max(0, num(p.qty) + Number(d.step));
-      p.qty = next; render();
+      p.qty = Math.max(0, num(p.qty) + Number(d.step)); render();
       clearTimeout(pending[p.id]);
       pending[p.id] = setTimeout(() => save("parts", p.id, strip(p)), 600);
     }
@@ -718,8 +1320,8 @@
   }
 
   // ---------- Arranque ----------
-  try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
-  try { const ui = JSON.parse(localStorage.getItem("ui") || "{}"); if (ui.tab) S.tab = ui.tab; if (ui.catCar) S.catCar = ui.catCar; } catch {}
+  { const t = lsGet("theme"); if (t) document.documentElement.dataset.theme = t; }
+  try { const ui = JSON.parse(lsGet("ui") || "{}"); if (ui.tab) S.tab = ui.tab; if (ui.catCar) S.catCar = ui.catCar; if (ui.stockView) S.stockView = ui.stockView; } catch {}
   render();
 
   (async () => {

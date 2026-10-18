@@ -6,6 +6,14 @@ App para el móvil para llevar una colección de coches clásicos: la ficha de c
 - La lista de vehículos de la colección está en `datos/garaje.json` (incluye bastidores; el repositorio es público). La app añade sola los que falten y respeta los cambios hechos en el móvil.
 - Repuestos, cantidades, fotos y ediciones se guardan **en el teléfono**. Desde el menú «⋯» se hace una copia de seguridad y se restaura.
 - Los despieces de referencia viven en `catalog/` y llegan a la app solos cuando se actualiza el repositorio.
+- **Mantenimiento:** historial de trabajos por vehículo y avisos por tiempo o kilómetros (aceite, filtros, frenos, batería…), con intervalos ajustables.
+- **Papeles:** avisos de ITV, seguro e impuesto de circulación 30 días antes.
+- **Usar repuestos:** al montar una pieza se descuenta del almacén y queda en el historial.
+- **Lista de la compra:** lo que baja del mínimo y lo apuntado a mano, con búsqueda en tiendas y opción de compartirla.
+- **Fotos:** galería por vehículo y foto de cada repuesto.
+- **Códigos de barras:** con la cámara o con una foto (usa [ZXing](https://github.com/zxing-js/library), licencia Apache 2.0, en `vendor/`).
+- **Documentos:** fotos o PDF de ficha técnica, seguro, ITV o facturas en cada vehículo.
+- **Copia de seguridad:** aviso cada 30 días para guardar una copia.
 
 ## Publicar con GitHub Pages
 
