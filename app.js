@@ -1127,6 +1127,33 @@
     });
   }
 
+  // ---------- Guía de bienvenida ----------
+  const GUIDE = [
+    ["i-car", "Bienvenido al garaje", "Aquí tienes tus coches y motos, sus repuestos, su mantenimiento y sus papeles. Todo funciona también sin cobertura."],
+    ["i-cal", "Avisos", "Arriba del garaje salen los avisos: ITV, seguro, impuesto y mantenimientos que tocan. Tócalo para ir al vehículo."],
+    ["i-wrench", "Mantenimiento", "Entra en un vehículo y pulsa «Registrar» junto a cada trabajo. Apunta el último cambio de aceite que recuerdes y la app empezará a contar."],
+    ["i-box", "Almacén", "Guarda lo que tienes en el taller con su cantidad. Con − y + la cambias de un toque. Si la caja tiene código de barras, pulsa «Escanear»."],
+    ["i-cart", "Usar y comprar", "Al montar una pieza, ábrela y pulsa «Usar en un vehículo»: se descuenta y queda en el historial. Lo que baja del mínimo pasa solo a la lista de la compra."],
+    ["i-gear", "Despiece y búsqueda", "Cada vehículo tiene sus piezas con referencia OEM. El botón del mundo busca la pieza en tiendas y desguaces."],
+    ["i-doc", "Papeles y fotos", "En cada vehículo puedes guardar fotos, la ficha técnica, el seguro y las facturas."],
+    ["i-dots", "Opciones", "En el botón ⋯ de arriba están la copia de seguridad, compartir entre móviles y la letra más grande. Esta guía también está ahí."],
+  ];
+  function showGuide(step = 0) {
+    const [icon, title, text] = GUIDE[step], last = step === GUIDE.length - 1;
+    openSheet(`<div class="guide">
+        <div class="guide-icon"><svg><use href="#${icon}"/></svg></div>
+        <span class="eyebrow">${step + 1} de ${GUIDE.length}</span>
+        <h2>${title}</h2>
+        <p class="lead">${text}</p>
+        <div class="dots" aria-hidden="true">${GUIDE.map((_, i) => `<span class="${i === step ? "on" : ""}"></span>`).join("")}</div>
+      </div>
+      <div class="actions">${step ? `<button class="btn" type="button" id="gPrev">Anterior</button>` : `<button class="btn" type="button" id="gSkip">Saltar</button>`}<button class="btn primary" type="button" id="gNext">${last ? "Empezar" : "Siguiente"}</button></div>`);
+    lsSet("guideSeen", "1");
+    $("#gNext").onclick = () => last ? closeSheet() : showGuide(step + 1);
+    $("#gPrev")?.addEventListener("click", () => showGuide(step - 1));
+    $("#gSkip")?.addEventListener("click", closeSheet);
+  }
+
   function moreMenu() {
     const last = lsGet("lastBackup");
     openSheet(`
@@ -1139,6 +1166,7 @@
         <button class="btn" type="button" id="syncBtn">Compartir entre móviles${syncCfg() ? " · conectado" : ""}</button>
         <button class="btn" type="button" id="pasteBtn">Pegar enlace</button>
         <input type="file" id="importFile" hidden>
+        <button class="btn" type="button" id="guideBtn">Cómo se usa la app</button>
         <button class="btn" type="button" id="themeBtn">Cambiar tema claro / oscuro</button>
         <div class="field"><span class="eyebrow">Tamaño de la letra</span><div class="seg" role="group" aria-label="Tamaño de la letra">${[["", "Normal"], ["grande", "Grande"], ["muy-grande", "Muy grande"]].map(([k, l]) => `<button type="button" data-text-size="${k}" aria-pressed="${(lsGet("textSize") || "") === k}">${l}</button>`).join("")}</div></div>
         <button class="btn" type="button" data-close>Cerrar</button>
@@ -1146,6 +1174,7 @@
       <p class="note">Despieces disponibles: ${libIndex.length ? libIndex.map(l => esc(l.title)).join(", ") : "ninguno todavía"}.</p>`);
     $("#exportBtn").addEventListener("click", exportBackup);
     $("#syncBtn").addEventListener("click", syncSheet);
+    $("#guideBtn").addEventListener("click", () => showGuide(0));
     document.querySelectorAll("[data-text-size]").forEach(b => b.addEventListener("click", () => {
       setTextSize(b.dataset.textSize);
       document.querySelectorAll("[data-text-size]").forEach(x => x.setAttribute("aria-pressed", x === b));
@@ -1585,6 +1614,7 @@
     loadLibrary();
     await seedGarage();
     importFromLink();
+    if (!lsGet("guideSeen") && !location.hash && $("#sheet").hidden) showGuide(0);
     resolveWikiPhotos();
     syncNow();
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - new Date(lsGet("lastSync") || 0) > 60000) syncNow(); });

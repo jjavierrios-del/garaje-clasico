@@ -320,3 +320,12 @@ a.btn.primary { color: var(--brass-ink); }
 .steps b { color: var(--fg); }
 .steps a { color: var(--brass); }
 .q-item:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* Guía de bienvenida */
+.guide { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding-block: 6px 4px; }
+.guide .lead { margin: 0; max-width: 34ch; }
+.guide-icon { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--brass) 16%, var(--surface-2)); color: var(--brass); border: 1px solid color-mix(in srgb, var(--brass) 40%, transparent); }
+.guide-icon svg { width: 36px; height: 36px; }
+.dots { display: flex; gap: 6px; margin-top: 4px; }
+.dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.dots span.on { background: var(--brass); width: 20px; border-radius: 4px; }

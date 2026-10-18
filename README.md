@@ -19,6 +19,17 @@ App para el móvil para llevar una colección de coches clásicos: la ficha de c
 - **Datos rápidos:** aceite, capacidades, neumáticos, batería y bujías de cada vehículo.
 - **Tamaño de letra:** normal, grande o muy grande (Opciones).
 - **Fotos de los vehículos:** van en `fotos/` (ver `fotos/LEEME.md`).
+- **Guía de bienvenida:** sale la primera vez que se abre la app y se puede volver a ver en «⋯» → «Cómo se usa la app».
+
+## Pruebas
+
+Pruebas automáticas con [Playwright](https://playwright.dev) que recorren la app como en un móvil (garaje, despiece, mantenimiento, compra, escáner, documentos, copia de seguridad, sincronización entre dos móviles y navegación):
+
+```sh
+npm install
+npx playwright install chromium   # solo la primera vez
+npm test
+```
 
 ## Publicar con GitHub Pages
 

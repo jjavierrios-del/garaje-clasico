@@ -1,0 +1,12 @@
+{
+  "name": "garaje-clasico",
+  "private": true,
+  "description": "App móvil para gestionar coches clásicos, repuestos y despiece",
+  "scripts": {
+    "test": "playwright test",
+    "serve": "node tests/server.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
