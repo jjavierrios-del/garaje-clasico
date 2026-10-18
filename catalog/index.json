@@ -1,1 +1,42 @@
-[]
+[
+ {
+  "key": "w204-c200cdi",
+  "title": "Mercedes-Benz C 200 CDI (W204 · 204.001 · OM 646)",
+  "file": "w204-c200cdi.json"
+ },
+ {
+  "key": "cbf600sa-pc43",
+  "title": "Honda CBF600SA ABS (PC43 · 2008–2013)",
+  "file": "cbf600sa-pc43.json"
+ },
+ {
+  "key": "nss350-forza",
+  "title": "Honda NSS350A Forza 350 (2021–2025)",
+  "file": "nss350-forza.json"
+ },
+ {
+  "key": "e36-318i-cabrio",
+  "title": "BMW 318i Cabrio (E36 · BH31 · M43)",
+  "file": "e36-318i-cabrio.json"
+ },
+ {
+  "key": "w126-280se",
+  "title": "Mercedes-Benz 280 SE (W126 · 126.022 · M 110)",
+  "file": "w126-280se.json"
+ },
+ {
+  "key": "w110-diesel",
+  "title": "Mercedes-Benz 190 Dc / 200 D (W110 · 110.110 · OM 621)",
+  "file": "w110-diesel.json"
+ },
+ {
+  "key": "r11-gtl",
+  "title": "Renault 11 GTL 1.4 (B37 · FASA-Renault)",
+  "file": "r11-gtl.json"
+ },
+ {
+  "key": "mitsubishi-j54",
+  "title": "Mitsubishi Jeep J54 (4DR5 diésel)",
+  "file": "mitsubishi-j54.json"
+ }
+]

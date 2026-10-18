@@ -5,7 +5,7 @@
 
   const S = { cars: [], parts: [], catalog: [], tab: "garage", carId: null, carTab: "parts", stockFilter: "all", stockCar: "all", catCar: null, q: "", ready: false, canWrite: true, canUpload: true };
   // Despieces publicados en el repositorio (catalog/*.json) y piezas propias guardadas en el móvil
-  let libIndex = [], libItems = [], localCat = [];
+  let libIndex = [], libItems = [], localCat = [], libDocs = {};
   const photoCache = new Map();
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -94,6 +94,7 @@
           const f = await fetch("catalog/" + entry.file, { cache: "no-cache" });
           if (!f.ok) continue;
           const doc = await f.json();
+          libDocs[entry.key] = doc;
           (doc.items || []).forEach((it, n) => all.push({ verified: true, ...it, id: it.id || entry.key + "-" + n, lib: entry.key, source: it.source || doc.source || "" }));
         } catch {}
       }
@@ -354,6 +355,25 @@
     });
   }
 
+  // Catálogos oficiales con despiece completo: se montan con el bastidor guardado en el teléfono
+  function officialLinks(c) {
+    const out = [], vin = String(c.vin || "").replace(/[\s-]/g, ""), mk = norm(c.make);
+    const add = (label, url) => out.push({ label, url });
+    if (vin && /mercedes|bmw|mitsubishi|honda|renault/.test(mk)) add("Despiece por bastidor (Partsouq)", "https://partsouq.com/en/search/all?q=" + encodeURIComponent(vin));
+    if (/bmw/.test(mk) && vin.length >= 7) add("Despiece por bastidor (RealOEM)", "https://www.realoem.com/bmw/enUS/select?vin=" + encodeURIComponent(vin.slice(-7)));
+    (libDocs[c.catalogKey]?.links || []).forEach(l => add(l.label, l.url));
+    add("Buscar despiece en Google", "https://www.google.com/search?q=" + encodeURIComponent(["despiece", c.make, c.model, c.version, c.year].filter(Boolean).join(" ")));
+    return out;
+  }
+  const linksBlock = (c) => `<div class="shops">${officialLinks(c).map(l => `<a class="shop" href="${esc(l.url)}" target="_blank" rel="noopener"><strong>${esc(l.label)}</strong><span>${esc(new URL(l.url).hostname.replace("www.", ""))}</span></a>`).join("")}</div>`;
+  function catIntro(c, items) {
+    const doc = libDocs[c.catalogKey];
+    const ok = items.filter(i => i.verified !== false).length;
+    return `${doc?.vehicle ? `<p class="note" style="margin:0">${esc(doc.vehicle)}</p>` : ""}
+      ${items.length ? `<div class="chips"><span class="chip ok">${ok} con fuente fiable</span>${items.length - ok ? `<span class="chip warn">${items.length - ok} por verificar</span>` : ""}</div>` : ""}
+      <div class="eyebrow">Despiece oficial completo</div>${linksBlock(c)}`;
+  }
+
   // ---------- Vistas ----------
   const stepper = (p) => `<div class="stepper ${stockState(p)}" aria-label="Cantidad"><button type="button" data-step="-1" data-id="${p.id}" aria-label="Quitar uno">−</button><output>${qtyFmt(num(p.qty))}</output><button type="button" data-step="1" data-id="${p.id}" aria-label="Añadir uno">+</button></div>`;
   function partRow(p, showCar = true) {
@@ -403,7 +423,7 @@
     const by = {};
     items.forEach(i => (by[i.group || "Otros"] ||= []).push(i));
     const order = [...GROUPS, ...Object.keys(by).filter(g => !GROUPS.includes(g))];
-    return `<div class="groups">${order.filter(g => by[g]).map((g, idx) => `<details class="group"${idx === 0 || S.q ? " open" : ""}><summary>${esc(g)}<span class="count">${by[g].length} piezas</span></summary>${by[g].sort((a, b) => a.name.localeCompare(b.name, "es")).map(i => catRow(i, showCar)).join("")}</details>`).join("")}</div>`;
+    return `<div class="groups">${order.filter(g => by[g]).map((g, idx) => `<details class="group"${idx === 0 || S.q ? " open" : ""}><summary>${esc(g)}<span class="count">${by[g].length} ${by[g].length === 1 ? "pieza" : "piezas"}</span></summary>${by[g].sort((a, b) => a.name.localeCompare(b.name, "es")).map(i => catRow(i, showCar)).join("")}</details>`).join("")}</div>`;
   }
   const carVisual = (c) => `<div class="car-photo">${photoUrl(c) ? `<img src="${esc(photoUrl(c))}" alt="${esc(carName(c))}" loading="lazy">` : `<span class="monogram">${esc((c.make || c.model || "?").slice(0, 3))}</span>`}${c.plate ? `<span class="plate">${esc(c.plate)}</span>` : ""}</div>`;
 
@@ -455,10 +475,11 @@
         : `<div class="empty"><h3>Sin repuestos todavía</h3><p>Guarda aquí el aceite, los filtros y las piezas que tienes para este coche.</p><button class="btn primary" type="button" data-new-part>Añadir repuesto</button></div>`;
       if (general.length) body += `<div class="section-head result-head"><span class="eyebrow">Compartidos con otros coches</span></div><div class="list">${general.map(p => partRow(p, false)).join("")}</div>`;
     } else if (S.carTab === "catalog") {
-      body = cat.length ? catalogGroups(cat) : `<div class="empty"><h3>Despiece sin cargar</h3><p>Aquí aparecerán las piezas del coche con su referencia OEM, agrupadas por motor, frenos, encendido…</p><button class="btn" type="button" data-new-cat>Añadir pieza a mano</button></div>`;
+      body = catIntro(c, cat) + (cat.length ? catalogGroups(cat) : `<div class="empty"><h3>Despiece sin cargar</h3><p>Aquí aparecerán las piezas del coche con su referencia OEM, agrupadas por motor, frenos, encendido…</p><button class="btn" type="button" data-new-cat>Añadir pieza a mano</button></div>`);
     } else {
       body = `<div class="hero"><dl class="spec" style="border-top:0">${spec.map(([k, v]) => `<div><dt>${k}</dt><dd class="${["Matrícula","Bastidor","Motor"].includes(k) ? "mono" : ""}">${esc(v || "—")}</dd></div>`).join("")}</dl></div>
         ${c.notes ? `<div class="list"><div class="row" style="grid-template-columns:1fr"><span style="white-space:pre-wrap">${esc(c.notes)}</span></div></div>` : ""}
+        <div class="eyebrow">Despiece oficial</div>${linksBlock(c)}
         <div class="actions"><button class="btn" type="button" data-edit-car>Editar ficha</button></div>`;
     }
     return `
@@ -501,6 +522,7 @@
     return `
       <div class="section-head"><h2>Despiece</h2><span class="eyebrow">${items.length} piezas</span></div>
       <div class="filters">${S.cars.map(c => `<button class="filter" type="button" data-cc="${c.id}" aria-pressed="${S.catCar === c.id}">${esc(carName(c))}</button>`).join("")}</div>
+      ${catIntro(carById(S.catCar), items)}
       ${items.length ? catalogGroups(items) : `<div class="empty"><h3>Despiece sin cargar</h3><p>Las piezas de este coche con sus códigos OEM aparecerán aquí por grupos.</p><button class="btn" type="button" data-new-cat>Añadir pieza a mano</button></div>`}`;
   }
 

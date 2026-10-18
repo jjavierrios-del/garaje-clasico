@@ -1,0 +1,50 @@
+{
+ "title": "BMW 318i Cabrio (E36 · BH31 · M43)",
+ "vehicle": "BMW Serie 3 E36 318i Cabrio, código de tipo BH31, motor M43 1.8, cambio manual (1994–1999).",
+ "links": [],
+ "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Lubricación",
+   "name": "Filtro de aceite",
+   "oem": "11 42 1 727 300",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Para carcasa con tapa de aluminio. Las fuentes dudan entre M42 y M43. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Turner Motorsport (Mahle) · anuncio eBay (E36 318i Cabrio M43)"
+  },
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "13 72 1 730 946",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio (E36 316i/318i M43)"
+  },
+  {
+   "id": "bujias",
+   "group": "Encendido",
+   "name": "Bujía",
+   "oem": "12 12 0 037 607",
+   "alt": "",
+   "perCar": "4",
+   "verified": false,
+   "notes": "Sale en el kit de Inspección II de BMW. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Leebmann24 (kit Inspección II)"
+  },
+  {
+   "id": "capota",
+   "group": "Carrocería",
+   "name": "Capota de lona",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Mira la referencia en RealOEM, grupo 54 (capota)."
+  }
+ ]
+}

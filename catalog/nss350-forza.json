@@ -1,0 +1,62 @@
+{
+ "title": "Honda NSS350A Forza 350 (2021–2025)",
+ "vehicle": "Honda Forza 350 con ABS, fabricada en Atessa (Italia), año modelo 2025 según el bastidor.",
+ "links": [
+  {
+   "label": "Microfichas Honda (CMSNL)",
+   "url": "https://www.google.com/search?q=site%3Acmsnl.com+NSS350A+Forza"
+  }
+ ],
+ "items": [
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "17210-K1B-D00",
+   "alt": "Hiflofiltro HFA1305, K&N HA-3521",
+   "perCar": "1",
+   "verified": true,
+   "source": "Hiflofiltro HFA1305 (NSS350 2021–2024) · catálogo K&N"
+  },
+  {
+   "id": "filtro-aceite",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite",
+   "oem": "",
+   "alt": "Hiflofiltro HF951",
+   "perCar": "1",
+   "verified": false,
+   "notes": "HF951 aparece para la NSS350 2021–2023 en un anuncio. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay"
+  },
+  {
+   "id": "correa",
+   "group": "Transmisión",
+   "name": "Correa de transmisión",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "No encontré la referencia. Mírala en la microficha o en la propia correa."
+  },
+  {
+   "id": "bujia",
+   "group": "Encendido",
+   "name": "Bujía",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Mira la referencia NGK en el manual del propietario."
+  },
+  {
+   "id": "rodillos",
+   "group": "Transmisión",
+   "name": "Rodillos del variador",
+   "oem": "",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false
+  }
+ ]
+}

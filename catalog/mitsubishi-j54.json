@@ -1,0 +1,45 @@
+{
+ "title": "Mitsubishi Jeep J54 (4DR5 diésel)",
+ "vehicle": "Mitsubishi Jeep J54, versión japonesa del Willys, con motor 4DR5 diésel de 2,7 litros.",
+ "links": [],
+ "items": [
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "MD603446",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Aparece para motores 4DR5C y otros diésel Mitsubishi. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "FridayParts (referencia cruzada)"
+  },
+  {
+   "id": "filtro-aceite",
+   "group": "Lubricación",
+   "name": "Filtro de aceite",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false
+  },
+  {
+   "id": "filtro-gasoil",
+   "group": "Alimentación",
+   "name": "Filtro de gasoil",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false
+  },
+  {
+   "id": "calentadores",
+   "group": "Encendido",
+   "name": "Bujía de precalentamiento",
+   "oem": "",
+   "alt": "",
+   "perCar": "4",
+   "verified": false
+  }
+ ]
+}

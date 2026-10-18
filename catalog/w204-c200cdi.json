@@ -1,0 +1,104 @@
+{
+ "title": "Mercedes-Benz C 200 CDI (W204 · 204.001 · OM 646)",
+ "vehicle": "Mercedes-Benz Clase C W204, C 200 CDI berlina, motor OM 646.811 diésel 2.148 cc, 136 CV.",
+ "links": [],
+ "items": [
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "A 646 094 02 04",
+   "alt": "WIX WA9720",
+   "perCar": "1",
+   "verified": true,
+   "source": "Catálogo WIX Filters (WA9720: C 200 CDI W204, OM 646.811/812)"
+  },
+  {
+   "id": "filtro-gasoil",
+   "group": "Alimentación",
+   "name": "Filtro de gasoil",
+   "oem": "A 642 092 02 01",
+   "alt": "MANN WK 820/2 x",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Hay versiones con y sin calefactor de filtro. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay (W204 OM 646, 2.143 cc)"
+  },
+  {
+   "id": "filtro-aceite",
+   "group": "Lubricación",
+   "name": "Filtro de aceite (cartucho)",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "No encontré una referencia fiable para el OM 646 del W204. Mira el número impreso en el cartucho al cambiarlo y apúntalo aquí."
+  },
+  {
+   "id": "filtro-habitaculo",
+   "group": "Mantenimiento",
+   "name": "Filtro de habitáculo (carbón activo)",
+   "oem": "A 204 830 00 18",
+   "alt": "A 212 830 03 18, RIDEX 424I0070",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Las referencias cruzadas de los vendedores no coinciden. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncios eBay / ManoMano / autoparti.it"
+  },
+  {
+   "id": "calentadores",
+   "group": "Encendido",
+   "name": "Bujía de precalentamiento",
+   "oem": "A 001 159 56 01",
+   "alt": "",
+   "perCar": "4",
+   "verified": false,
+   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay (C 200 CDI W204, OM 646.811/812)"
+  },
+  {
+   "id": "rele-calentadores",
+   "group": "Eléctrico",
+   "name": "Relé / centralita de precalentamiento",
+   "oem": "A 646 153 25 79",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncios (C 200 CDI W204 2007–2010)"
+  },
+  {
+   "id": "pastillas-del",
+   "group": "Frenos",
+   "name": "Pastillas de freno delanteras",
+   "oem": "A 005 420 12 20",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay (referencia cruzada W204)"
+  },
+  {
+   "id": "discos-del",
+   "group": "Frenos",
+   "name": "Discos de freno delanteros",
+   "oem": "A 204 421 28 12",
+   "alt": "A 204 421 09 12, A 204 421 36 12",
+   "perCar": "2",
+   "verified": false,
+   "notes": "Diámetro 295 mm según un kit. Hay discos lisos y perforados: mide el tuyo. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "ManoMano (kit discos W204)"
+  },
+  {
+   "id": "aceite",
+   "group": "Lubricación",
+   "name": "Aceite de motor",
+   "oem": "",
+   "alt": "MB 229.51 · 5W-30 / 5W-40",
+   "perCar": "≈ 6,5 L con filtro",
+   "verified": false,
+   "notes": "Las fuentes no coinciden en la capacidad. Confírmala en el manual del coche.",
+   "source": "Foros MBClub / MBWorld"
+  }
+ ]
+}

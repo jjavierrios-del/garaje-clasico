@@ -1,0 +1,51 @@
+{
+ "title": "Renault 11 GTL 1.4 (B37 · FASA-Renault)",
+ "vehicle": "Renault 11 GTL de 5 puertas (B37), fabricado por FASA-Renault en España, motor 1.4 de la familia C.",
+ "links": [
+  {
+   "label": "Buscar despiece Renault 11",
+   "url": "https://www.google.com/search?q=despiece+renault+11+GTL+B372"
+  }
+ ],
+ "items": [
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "7700 565 729",
+   "alt": "7701 001 494, 7701 005 514",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Esta referencia aparece para el 11 Turbo (C1J). En el GTL puede ser distinta: compárala con el filtro que lleva.",
+   "source": "Mecatechnic (Renault 11 Turbo)"
+  },
+  {
+   "id": "filtro-aceite",
+   "group": "Lubricación",
+   "name": "Filtro de aceite",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Mira el código de motor en la placa (C1J 715, C1J 760…) para elegir el filtro."
+  },
+  {
+   "id": "bujias",
+   "group": "Encendido",
+   "name": "Bujía",
+   "oem": "",
+   "alt": "",
+   "perCar": "4",
+   "verified": false
+  },
+  {
+   "id": "platinos",
+   "group": "Encendido",
+   "name": "Tapa de delco, rotor y cables",
+   "oem": "",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false
+  }
+ ]
+}

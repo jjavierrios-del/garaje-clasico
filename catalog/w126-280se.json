@@ -1,0 +1,62 @@
+{
+ "title": "Mercedes-Benz 280 SE (W126 · 126.022 · M 110)",
+ "vehicle": "Mercedes-Benz Clase S W126 280 SE berlina, chasis 126.022, motor M 110 de 6 cilindros 2.8 inyección (1979–1985).",
+ "links": [
+  {
+   "label": "Catálogo clásico Niemöller (W126)",
+   "url": "https://www.niemoeller.de/en/W126/"
+  }
+ ],
+ "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Lubricación",
+   "name": "Filtro de aceite (cartucho)",
+   "oem": "A 000 180 06 09",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Un anuncio lo da para M 110, M 116 y M 117. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay"
+  },
+  {
+   "id": "carcasa-filtro",
+   "group": "Lubricación",
+   "name": "Carcasa del filtro de aceite",
+   "oem": "110 180 02 11",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay (W126 M110)"
+  },
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Mira la referencia en Niemöller o Partsouq."
+  },
+  {
+   "id": "bujias",
+   "group": "Encendido",
+   "name": "Bujía",
+   "oem": "",
+   "alt": "",
+   "perCar": "6",
+   "verified": false
+  },
+  {
+   "id": "filtro-gasolina",
+   "group": "Alimentación",
+   "name": "Filtro de gasolina",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false
+  }
+ ]
+}

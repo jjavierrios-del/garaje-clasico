@@ -1,0 +1,72 @@
+{
+ "title": "Honda CBF600SA ABS (PC43 · 2008–2013)",
+ "vehicle": "Honda CBF600SA con ABS, chasis PC43, fabricada en Atessa (Italia), año modelo 2010 según el bastidor.",
+ "links": [
+  {
+   "label": "Microfichas Honda (CMSNL)",
+   "url": "https://www.google.com/search?q=site%3Acmsnl.com+CBF600SA+2010"
+  }
+ ],
+ "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite",
+   "oem": "15410-MFJ-D01",
+   "alt": "Hiflofiltro HF204, K&N KN-204",
+   "perCar": "1",
+   "verified": false,
+   "notes": "El HF204 aparece para la CBF600 2008–2013 en anuncios; la referencia Honda se comparte con la CBR600. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay Hiflo · catálogo K&N"
+  },
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "",
+   "alt": "Hiflofiltro HFA1618, K&N HA-5907",
+   "perCar": "1",
+   "verified": true,
+   "source": "Catálogo K&N (CBF600 2008–2010)"
+  },
+  {
+   "id": "kit-arrastre",
+   "group": "Transmisión",
+   "name": "Kit de arrastre (cadena 525 + piñón + corona)",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Paso 525. Cuenta los dientes de piñón y corona antes de comprar (en la CBF600 anterior eran 15/43)."
+  },
+  {
+   "id": "bujias",
+   "group": "Encendido",
+   "name": "Bujía",
+   "oem": "",
+   "alt": "",
+   "perCar": "4",
+   "verified": false,
+   "notes": "Mira la referencia NGK en el manual del propietario o en la bujía usada."
+  },
+  {
+   "id": "pastillas-del",
+   "group": "Frenos",
+   "name": "Pastillas de freno delanteras",
+   "oem": "",
+   "alt": "",
+   "perCar": "2 juegos",
+   "verified": false,
+   "notes": "Mira la referencia en la microficha CMSNL."
+  },
+  {
+   "id": "pastillas-tras",
+   "group": "Frenos",
+   "name": "Pastillas de freno traseras",
+   "oem": "",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false
+  }
+ ]
+}

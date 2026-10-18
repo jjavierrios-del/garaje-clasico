@@ -1,0 +1,71 @@
+{
+ "title": "Mercedes-Benz 190 Dc / 200 D (W110 · 110.110 · OM 621)",
+ "vehicle": "Mercedes-Benz W110 «Colas» diésel, chasis 110.110 y motor OM 621. Fue 190 Dc entre 1961 y 1965 (motor 621.912) y 200 D entre 1965 y 1968.",
+ "links": [
+  {
+   "label": "Catálogo clásico Niemöller (W110)",
+   "url": "https://www.niemoeller.de/en/w110/"
+  }
+ ],
+ "items": [
+  {
+   "id": "arandela-eje",
+   "group": "Suspensión trasera",
+   "name": "Arandela de seguridad del eje trasero",
+   "oem": "183 353 03 73",
+   "alt": "Niemöller C 35 134",
+   "perCar": "2",
+   "verified": true,
+   "source": "Niemöller · 190 Dc W110.110, motor 621.912"
+  },
+  {
+   "id": "kit-brazos",
+   "group": "Suspensión delantera",
+   "name": "Kit de reparación de brazos superior e inferior",
+   "oem": "120 586 00 33",
+   "alt": "Niemöller C 33 108a",
+   "perCar": "1",
+   "verified": true,
+   "source": "Niemöller · 190 Dc W110.110, motor 621.912"
+  },
+  {
+   "id": "carter",
+   "group": "Lubricación",
+   "name": "Cárter de aceite",
+   "oem": "115 010 04 28",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Listado para W110 y W115; confirma que corresponde al OM 621.",
+   "source": "Classic Parts Finder"
+  },
+  {
+   "id": "filtro-aceite",
+   "group": "Lubricación",
+   "name": "Filtro de aceite",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Mira la referencia en Niemöller con el chasis 110.110."
+  },
+  {
+   "id": "filtro-gasoil",
+   "group": "Alimentación",
+   "name": "Filtro de gasoil",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false
+  },
+  {
+   "id": "calentadores",
+   "group": "Encendido",
+   "name": "Bujía de precalentamiento",
+   "oem": "",
+   "alt": "",
+   "perCar": "4",
+   "verified": false
+  }
+ ]
+}
