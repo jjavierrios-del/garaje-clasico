@@ -56,7 +56,9 @@
     S.catalog = out;
   }
   async function loadAll() {
-    S.cars = await idbAll("cars"); S.parts = await idbAll("parts"); localCat = await idbAll("catalog");
+    const carsRaw = await idbAll("cars");
+    S.cars = carsRaw.filter(c => !c.deleted);
+    loadAll.removedCars = carsRaw.filter(c => c.deleted).map(c => c.id); S.parts = await idbAll("parts"); localCat = await idbAll("catalog");
     for (const c of S.cars) if (c.photoId && !photoCache.has(c.photoId)) {
       const blob = await tx("photos", "readonly", st => st.get(c.photoId));
       if (blob) photoCache.set(c.photoId, URL.createObjectURL(blob));
@@ -79,10 +81,25 @@
     try {
       const item = coll === "catalog" ? S.catalog.find(i => i.id === id) : null;
       if (item?.libId) await idbPut("catalog", { id, libId: item.libId, carId: item.carId, deleted: true });
+      else if (coll === "cars") await idbPut("cars", { id, deleted: true });
       else await idbDel(coll, id);
       if (coll === "catalog") localCat = await idbAll("catalog"); else S[coll] = S[coll].filter(x => x.id !== id);
       mergeCatalog(); render();
     } catch { toast("No se pudo borrar"); }
+  }
+  // Vehículos guardados en el repositorio (datos/garaje.json): se añaden los que falten, sin pisar cambios hechos en el móvil
+  async function seedGarage() {
+    try {
+      const r = await fetch("datos/garaje.json", { cache: "no-cache" });
+      if (!r.ok) return;
+      const d = await r.json(), skip = new Set([...S.cars.map(c => c.id), ...(loadAll.removedCars || [])]);
+      const nuevos = (d.coches || []).filter(c => c.id && !skip.has(c.id));
+      if (!nuevos.length) return;
+      const now = new Date().toISOString();
+      for (const c of nuevos) await idbPut("cars", { createdAt: now, updatedAt: now, ...c });
+      await loadAll(); render();
+      toast(nuevos.length === 1 ? "1 vehículo añadido" : nuevos.length + " vehículos añadidos");
+    } catch {}
   }
   async function loadLibrary() {
     try {
@@ -658,6 +675,7 @@
     render();
     navigator.storage?.persist?.().catch(() => {});
     loadLibrary();
+    await seedGarage();
     importFromLink();
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
   })();

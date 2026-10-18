@@ -3,7 +3,8 @@
 App para el móvil para llevar una colección de coches clásicos: la ficha de cada coche, el almacén de repuestos (aceite, filtros, bujías, juntas…) y el despiece con códigos OEM, con enlaces directos para buscar cada pieza en tiendas.
 
 - Funciona sin conexión y se instala en la pantalla de inicio como una app.
-- Los datos (coches, repuestos, fotos) se guardan **solo en el teléfono**, nunca en este repositorio. Desde el menú «⋯» se hace una copia de seguridad y se restaura.
+- La lista de vehículos de la colección está en `datos/garaje.json` (incluye bastidores; el repositorio es público). La app añade sola los que falten y respeta los cambios hechos en el móvil.
+- Repuestos, cantidades, fotos y ediciones se guardan **en el teléfono**. Desde el menú «⋯» se hace una copia de seguridad y se restaura.
 - Los despieces de referencia viven en `catalog/` y llegan a la app solos cuando se actualiza el repositorio.
 
 ## Publicar con GitHub Pages
