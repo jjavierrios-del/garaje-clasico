@@ -12,7 +12,9 @@
    "plate": "",
    "km": "",
    "color": "",
-   "notes": ""
+   "notes": "",
+   "wiki": "en:Mercedes-Benz_C-Class_(W204)",
+   "kind": "coche"
   },
   {
    "id": "c-cbf600",
@@ -26,7 +28,9 @@
    "plate": "",
    "km": "",
    "color": "",
-   "notes": ""
+   "notes": "",
+   "wiki": "en:Honda_CBF600",
+   "kind": "moto"
   },
   {
    "id": "c-e36",
@@ -40,7 +44,9 @@
    "plate": "",
    "km": "",
    "color": "",
-   "notes": ""
+   "notes": "",
+   "wiki": "en:BMW_3_Series_(E36)",
+   "kind": "coche"
   },
   {
    "id": "c-forza",
@@ -54,7 +60,9 @@
    "plate": "",
    "km": "",
    "color": "",
-   "notes": ""
+   "notes": "",
+   "wiki": "en:Honda_Forza",
+   "kind": "moto"
   },
   {
    "id": "c-r11",
@@ -68,7 +76,9 @@
    "plate": "",
    "km": "",
    "color": "",
-   "notes": ""
+   "notes": "",
+   "wiki": "en:Renault_11",
+   "kind": "coche"
   },
   {
    "id": "c-j54",
@@ -82,7 +92,9 @@
    "plate": "",
    "km": "",
    "color": "",
-   "notes": ""
+   "notes": "",
+   "wiki": "en:Mitsubishi_Jeep",
+   "kind": "coche"
   },
   {
    "id": "c-w126",
@@ -96,7 +108,9 @@
    "plate": "",
    "km": "",
    "color": "",
-   "notes": ""
+   "notes": "",
+   "wiki": "en:Mercedes-Benz_W126",
+   "kind": "coche"
   },
   {
    "id": "c-w110",
@@ -110,7 +124,9 @@
    "notes": "Apuntado como 180 D. Por el chasis 110.110 y el año 1968 es un W110 200 D.",
    "plate": "",
    "km": "",
-   "color": ""
+   "color": "",
+   "wiki": "en:Mercedes-Benz_W110",
+   "kind": "coche"
   }
  ]
 }

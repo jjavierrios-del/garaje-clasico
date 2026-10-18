@@ -1,5 +1,5 @@
 // Funciona sin conexión: la app se sirve desde caché y se actualiza en segundo plano.
-const CACHE = "garaje-v6";
+const CACHE = "garaje-v7";
 const CORE = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "catalog/index.json", "datos/garaje.json"];
 
 self.addEventListener("install", e => {
@@ -14,7 +14,9 @@ self.addEventListener("fetch", e => {
   // Red primero (para recibir despieces y mejoras nuevas); si no hay cobertura, caché.
   e.respondWith(
     fetch(req).then(res => {
-      if (res.ok && (new URL(req.url).origin === location.origin || req.url.includes("fonts.g"))) {
+      const u = new URL(req.url);
+      const keep = (res.ok && (u.origin === location.origin || u.host.includes("fonts.g"))) || u.host === "upload.wikimedia.org";
+      if (keep) {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(req, copy));
       }

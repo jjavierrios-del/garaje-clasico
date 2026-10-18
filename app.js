@@ -3,7 +3,7 @@
   const GROUPS = ["Motor","Distribución","Lubricación","Alimentación","Encendido","Refrigeración","Escape","Embrague","Caja de cambios","Transmisión","Frenos","Suspensión delantera","Suspensión trasera","Dirección","Eléctrico","Carrocería","Interior","Mantenimiento"];
   const UNITS = ["ud","L","kg","juego","m"];
 
-  const S = { cars: [], parts: [], catalog: [], tab: "garage", carId: null, carTab: "parts", stockFilter: "all", stockCar: "all", catCar: null, q: "", ready: false, canWrite: true, canUpload: true };
+  const S = { cars: [], parts: [], catalog: [], tab: "garage", carId: null, carTab: "parts", kind: "all", stockFilter: "all", stockCar: "all", catCar: null, q: "", ready: false, canWrite: true, canUpload: true };
   // Despieces publicados en el repositorio (catalog/*.json) y piezas propias guardadas en el móvil
   let libIndex = [], libItems = [], localCat = [], libDocs = {};
   const photoCache = new Map();
@@ -14,7 +14,29 @@
   const codeKey = (v) => norm(v).replace(/[^a-z0-9]/g, "");
   const carById = (id) => S.cars.find(c => c.id === id);
   const carName = (c) => c ? [c.make, c.model].filter(Boolean).join(" ") : "General";
-  const photoUrl = (c) => (c && c.photoId && photoCache.get(c.photoId)) || "";
+  // Foto propia del móvil; si no hay, la foto principal del artículo de Wikipedia del modelo
+  let wikiPhotos = {};
+  try { wikiPhotos = JSON.parse(localStorage.getItem("wikiPhotos") || "{}"); } catch {}
+  const ownPhoto = (c) => (c && c.photoId && photoCache.get(c.photoId)) || "";
+  const photoUrl = (c) => ownPhoto(c) || (c && c.wiki && wikiPhotos[c.wiki]?.url) || "";
+  async function resolveWikiPhotos() {
+    const todo = [...new Set(S.cars.filter(c => c.wiki && !wikiPhotos[c.wiki]).map(c => c.wiki))];
+    if (!todo.length || !navigator.onLine) return;
+    await Promise.all(todo.map(async key => {
+      const [lang, title] = key.includes(":") ? key.split(/:(.+)/) : ["es", key];
+      try {
+        const r = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+        if (!r.ok) return;
+        const j = await r.json();
+        let url = j.thumbnail?.source || j.originalimage?.source;
+        if (!url) return;
+        if ((j.originalimage?.width || 0) >= 960) url = url.replace(/\/\d+px-/, "/960px-");
+        wikiPhotos[key] = { url, page: j.content_urls?.mobile?.page || "" };
+      } catch {}
+    }));
+    try { localStorage.setItem("wikiPhotos", JSON.stringify(wikiPhotos)); } catch {}
+    render();
+  }
   const num = (v, d = 0) => { const n = parseFloat(String(v).replace(",", ".")); return isFinite(n) ? n : d; };
   const qtyFmt = (n) => Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
   const stockState = (p) => { const q = num(p.qty), m = num(p.minQty); return q <= 0 ? "zero" : (m > 0 && q <= m ? "low" : "ok"); };
@@ -93,8 +115,17 @@
       const r = await fetch("datos/garaje.json", { cache: "no-cache" });
       if (!r.ok) return;
       const d = await r.json(), skip = new Set([...S.cars.map(c => c.id), ...(loadAll.removedCars || [])]);
+      // Completa campos nuevos (foto, tipo) en los ya guardados sin tocar lo que se haya editado
+      let changed = false;
+      for (const seed of d.coches || []) {
+        const cur = S.cars.find(c => c.id === seed.id);
+        if (!cur) continue;
+        const add = {};
+        for (const k of ["wiki", "kind"]) if (seed[k] && !cur[k]) add[k] = seed[k];
+        if (Object.keys(add).length) { await idbPut("cars", { ...cur, ...add }); changed = true; }
+      }
       const nuevos = (d.coches || []).filter(c => c.id && !skip.has(c.id));
-      if (!nuevos.length) return;
+      if (!nuevos.length) { if (changed) { await loadAll(); render(); } return; }
       const now = new Date().toISOString();
       for (const c of nuevos) await idbPut("cars", { createdAt: now, updatedAt: now, ...c });
       await loadAll(); render();
@@ -183,6 +214,7 @@
         ${field("c_model", "Modelo", car.model, { ph: "280 SL" })}
         ${field("c_version", "Versión / serie", car.version, { ph: "W113 Pagoda" })}
         ${field("c_year", "Año", car.year, { inputmode: "numeric", ph: "1969" })}
+        ${field("c_kind", "Tipo", car.kind || "coche", { options: [["coche", "Coche"], ["moto", "Moto"]] })}
         ${field("c_plate", "Matrícula", car.plate, { mono: true, ph: "M-1234-AB" })}
         ${field("c_km", "Kilómetros", car.km, { inputmode: "numeric" })}
         ${field("c_vin", "Nº de bastidor", car.vin, { mono: true, full: true })}
@@ -197,7 +229,7 @@
         ${car.id ? `<button class="btn danger" type="button" id="delCar">Borrar coche</button>` : `<button class="btn" type="button" data-close>Cancelar</button>`}
       </div>`);
     $("#saveCar").addEventListener("click", async () => {
-      const data = { make: val("c_make"), model: val("c_model"), version: val("c_version"), year: val("c_year"), plate: val("c_plate").toUpperCase(), km: val("c_km"), vin: val("c_vin").toUpperCase(), engine: val("c_engine"), color: val("c_color"), notes: val("c_notes"), photoId: car.photoId || "", catalogKey: $("#c_lib") ? val("c_lib") : (car.catalogKey || "") };
+      const data = { make: val("c_make"), model: val("c_model"), version: val("c_version"), year: val("c_year"), plate: val("c_plate").toUpperCase(), km: val("c_km"), vin: val("c_vin").toUpperCase(), engine: val("c_engine"), color: val("c_color"), notes: val("c_notes"), photoId: car.photoId || "", catalogKey: $("#c_lib") ? val("c_lib") : (car.catalogKey || ""), kind: val("c_kind") || "coche", wiki: car.wiki || "" };
       if (!data.make && !data.model) { toast("Escribe al menos la marca o el modelo"); return; }
       const file = $("#c_photo")?.files?.[0];
       $("#saveCar").disabled = true;
@@ -473,7 +505,22 @@
     const order = [...GROUPS, ...Object.keys(by).filter(g => !GROUPS.includes(g))];
     return `<div class="groups">${order.filter(g => by[g]).map((g, idx) => `<details class="group"${idx === 0 || S.q ? " open" : ""}><summary>${esc(g)}<span class="count">${by[g].length} ${by[g].length === 1 ? "pieza" : "piezas"}</span></summary>${by[g].sort((a, b) => a.name.localeCompare(b.name, "es")).map(i => catRow(i, showCar)).join("")}</details>`).join("")}</div>`;
   }
-  const carVisual = (c) => `<div class="car-photo">${photoUrl(c) ? `<img src="${esc(photoUrl(c))}" alt="${esc(carName(c))}" loading="lazy">` : `<span class="monogram">${esc((c.make || c.model || "?").slice(0, 3))}</span>`}${c.plate ? `<span class="plate">${esc(c.plate)}</span>` : ""}</div>`;
+  const isMoto = (c) => c.kind === "moto";
+  const carVisual = (c, big = false) => {
+    const url = photoUrl(c), ref = url && !ownPhoto(c);
+    return `<div class="car-photo${big ? " big" : ""}${url ? "" : " no-photo"}">
+      ${url ? `<img src="${esc(url)}" alt="${esc(carName(c))}" loading="lazy" onerror="this.remove()">` : ""}
+      <span class="monogram" aria-hidden="true">${esc(c.make || c.model || "?")}</span>
+      <div class="shade"></div>
+      <div class="badges">${c.plate ? `<span class="plate">${esc(c.plate)}</span>` : `<span class="kind"><svg><use href="#${isMoto(c) ? "i-moto" : "i-car"}"/></svg>${isMoto(c) ? "Moto" : "Coche"}</span>`}${c.year ? `<span class="year-badge">${esc(c.year)}</span>` : ""}</div>
+      <div class="overlay">
+        <span class="make">${esc(c.make)}</span>
+        <h3>${esc(c.model)}</h3>
+        ${c.version ? `<span class="ver">${esc(c.version)}</span>` : ""}
+      </div>
+      ${ref ? `<span class="credit">Foto de referencia · Wikipedia</span>` : ""}
+    </div>`;
+  };
 
   function viewGarage() {
     const low = S.parts.filter(p => stockState(p) !== "ok").length;
@@ -488,18 +535,18 @@
     }
     return `
       <div class="gauges">
-        <div class="gauge"><b>${S.cars.length}</b><span>Coches</span></div>
+        <div class="gauge"><b>${S.cars.length}</b><span>Vehículos</span></div>
         <div class="gauge"><b>${S.parts.length}</b><span>Repuestos</span></div>
         <div class="gauge ${low ? "alert" : ""}"><b>${low}</b><span>Por reponer</span></div>
       </div>
-      <div class="section-head"><h2>La colección</h2><span class="eyebrow">${S.cars.length} ${S.cars.length === 1 ? "coche" : "coches"}</span></div>
-      <div class="cars">${[...S.cars].sort((a, b) => num(a.year, 9999) - num(b.year, 9999)).map(c => {
+      <div class="section-head"><h2>La colección</h2><span class="eyebrow">${S.cars.filter(c => !isMoto(c)).length} coches · ${S.cars.filter(isMoto).length} motos</span></div>
+      ${S.cars.some(isMoto) ? `<div class="filters">${[["all", "Todos"], ["coche", "Coches"], ["moto", "Motos"]].map(([k, l]) => `<button class="filter" type="button" data-kind="${k}" aria-pressed="${S.kind === k}">${l}</button>`).join("")}</div>` : ""}
+      <div class="cars">${[...S.cars].filter(c => S.kind === "all" || (S.kind === "moto") === isMoto(c)).sort((a, b) => num(a.year, 9999) - num(b.year, 9999)).map(c => {
         const parts = S.parts.filter(p => p.carId === c.id), cat = S.catalog.filter(i => i.carId === c.id);
         const lowC = parts.filter(p => stockState(p) !== "ok").length;
         return `<button class="car" type="button" data-car="${c.id}">
           ${carVisual(c)}
           <div class="car-body">
-            <div class="car-title"><h3>${esc(c.make)} ${esc(c.model)}${c.version ? `<span>${esc(c.version)}</span>` : ""}</h3>${c.year ? `<span class="year">${esc(c.year)}</span>` : ""}</div>
             <div class="chips">
               <span class="chip">${parts.length} ${parts.length === 1 ? "repuesto" : "repuestos"}</span>
               <span class="chip">${cat.length} ${cat.length === 1 ? "pieza" : "piezas"} de despiece</span>
@@ -532,8 +579,12 @@
     }
     return `
       <button class="back" type="button" data-go="garage"><svg><use href="#i-back"/></svg>Garaje</button>
-      <div class="hero">${carVisual(c)}
-        <div class="car-body"><div class="car-title"><h3>${esc(c.make)} ${esc(c.model)}${c.version ? `<span>${esc(c.version)}</span>` : ""}</h3>${c.year ? `<span class="year">${esc(c.year)}</span>` : ""}</div></div>
+      <div class="hero">${carVisual(c, true)}</div>
+      <div class="facts">
+        <div><span>Año</span><b>${esc(c.year || "—")}</b></div>
+        <div><span>Motor</span><b>${esc(c.engine || "—")}</b></div>
+        <div><span>Repuestos</span><b>${parts.length}</b></div>
+        <div><span>Despiece</span><b>${cat.length}</b></div>
       </div>
       <div class="seg" role="group" aria-label="Vista del coche">
         <button type="button" data-cartab="parts" aria-pressed="${S.carTab === "parts"}">Repuestos</button>
@@ -651,6 +702,7 @@
     else if (d.sf !== undefined) { S.stockFilter = d.sf; render(); }
     else if (d.sc !== undefined) { S.stockCar = d.sc; render(); }
     else if (d.cc) { S.catCar = d.cc; render(); }
+    else if (d.kind) { S.kind = d.kind; render(); }
     else if (d.step) {
       const p = S.parts.find(x => x.id === d.id); if (!p) return;
       const next = Math.max(0, num(p.qty) + Number(d.step));
@@ -677,6 +729,7 @@
     loadLibrary();
     await seedGarage();
     importFromLink();
+    resolveWikiPhotos();
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
   })();
 })();
