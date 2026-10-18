@@ -332,6 +332,30 @@
       toast("Copia restaurada");
     } catch { toast("Ese archivo no es una copia de Garaje Clásico"); }
   }
+  // Enlace de alta: #importar=<json en base64url>. El fragmento nunca llega al servidor.
+  async function importFromLink() {
+    const m = location.hash.match(/^#importar=([A-Za-z0-9_-]+)/);
+    if (!m) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    let d;
+    try {
+      const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+      const bytes = Uint8Array.from(atob(b64 + "===".slice((b64.length + 3) % 4)), c => c.charCodeAt(0));
+      d = JSON.parse(new TextDecoder().decode(bytes));
+    } catch { toast("El enlace de alta está incompleto"); return; }
+    const nuevos = (d.coches || []).filter(c => c.id && !S.cars.some(x => x.id === c.id));
+    if (!nuevos.length) { toast("Esos vehículos ya están en el garaje"); return; }
+    openSheet(`<h2>Añadir ${nuevos.length} vehículos</h2>
+      <p class="lead">${nuevos.map(c => esc(carName(c))).join(", ")}.</p>
+      <p class="note">Se añaden a lo que ya tienes; no se borra nada.</p>
+      <div class="actions"><button class="btn primary" type="button" id="addLink">Añadir al garaje</button><button class="btn" type="button" data-close>Ahora no</button></div>`);
+    $("#addLink").addEventListener("click", async () => {
+      for (const c of nuevos) await idbPut("cars", c);
+      for (const p of d.repuestos || []) if (!S.parts.some(x => x.id === p.id)) await idbPut("parts", p);
+      await loadAll(); closeSheet(); S.tab = "garage"; render(); toast(nuevos.length + " vehículos añadidos");
+    });
+  }
+
   function moreMenu() {
     openSheet(`
       <h2>Opciones</h2>
@@ -340,7 +364,7 @@
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" id="exportBtn"><svg><use href="#i-down"/></svg>Hacer copia de seguridad</button>
         <button class="btn" type="button" id="importBtn">Restaurar una copia</button>
-        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <input type="file" id="importFile" hidden>
         <button class="btn" type="button" id="themeBtn">Cambiar tema claro / oscuro</button>
         <button class="btn" type="button" data-close>Cerrar</button>
       </div>
@@ -627,6 +651,7 @@
     render();
     navigator.storage?.persist?.().catch(() => {});
     loadLibrary();
+    importFromLink();
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
   })();
 })();
