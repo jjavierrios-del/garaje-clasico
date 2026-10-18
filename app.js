@@ -20,7 +20,7 @@
   const DOC_DATE_FIELD = { "ITV": "itvDate", "Seguro": "insuranceDate", "Impuesto de circulación": "taxDate" };
   const BACKUP_DAYS = 30;
 
-  const S = { cars: [], parts: [], catalog: [], logs: [], docs: [], shop: [], trips: [], tab: "garage", carId: null, carTab: "maint", kind: "all", stockView: "inv", stockGroup: "cat", stockFilter: "all", stockCar: "all", catCar: null, q: "", allAlerts: false, ready: false, canUpload: true };
+  const S = { cars: [], parts: [], catalog: [], logs: [], docs: [], shop: [], trips: [], maps: [], tab: "garage", carId: null, carTab: "maint", kind: "all", stockView: "inv", stockGroup: "cat", stockFilter: "all", stockCar: "all", catCar: null, q: "", allAlerts: false, ready: false, canUpload: true };
   // Despieces publicados en el repositorio (catalog/*.json) y piezas propias guardadas en el móvil
   let libIndex = [], libItems = [], localCat = [], libDocs = {};
 
@@ -119,11 +119,11 @@
 
   // ---------- Datos (IndexedDB, en el propio dispositivo) ----------
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  const STORES = ["cars", "parts", "catalog", "logs", "docs", "shop", "trips"];
+  const STORES = ["cars", "parts", "catalog", "logs", "docs", "shop", "trips", "maps"];
   let idbP = null;
   function idb() {
     return idbP ||= new Promise((res, rej) => {
-      const r = indexedDB.open("garaje-clasico", 3);
+      const r = indexedDB.open("garaje-clasico", 4);
       r.onupgradeneeded = () => { const d = r.result; STORES.forEach(n => d.objectStoreNames.contains(n) || d.createObjectStore(n, { keyPath: "id" })); d.objectStoreNames.contains("photos") || d.createObjectStore("photos"); };
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
@@ -158,7 +158,7 @@
     S.cars = alive(carsRaw);
     loadAll.removedCars = carsRaw.filter(c => c.deleted).map(c => c.id);
     S.parts = alive(await idbAll("parts")); localCat = await idbAll("catalog");
-    S.logs = alive(await idbAll("logs")); S.docs = alive(await idbAll("docs")); S.shop = alive(await idbAll("shop")); S.trips = alive(await idbAll("trips"));
+    S.logs = alive(await idbAll("logs")); S.docs = alive(await idbAll("docs")); S.shop = alive(await idbAll("shop")); S.trips = alive(await idbAll("trips")); S.maps = alive(await idbAll("maps"));
     await Promise.all(S.cars.map(c => blobUrlAsync(c.photoId).catch(() => "")));
     mergeCatalog();
   }
@@ -331,7 +331,7 @@
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   function backupNeeded() {
-    const has = S.parts.length + S.logs.length + S.docs.length + S.shop.length + S.trips.length > 0 || S.cars.some(c => c.photoId || c.gallery?.length || c.itvDate || c.insuranceDate);
+    const has = S.parts.length + S.logs.length + S.docs.length + S.shop.length + S.trips.length + S.maps.length > 0 || S.cars.some(c => c.photoId || c.gallery?.length || c.itvDate || c.insuranceDate);
     if (!has) return null;
     const ls = lsGet("lastSync");
     if (syncCfg() && ls && Date.now() - new Date(ls) < BACKUP_DAYS * 86400000) return null;
@@ -348,9 +348,10 @@
     S.cars.forEach(c => { if (c.photoId) ids.add(c.photoId); (c.gallery || []).forEach(i => ids.add(i)); });
     S.parts.forEach(p => p.photoId && ids.add(p.photoId));
     S.docs.forEach(d => d.fileId && ids.add(d.fileId));
+    S.maps.forEach(m => m.photoId && ids.add(m.photoId));
     const files = {};
     for (const id of ids) { const b = await getBlob(id); if (b) files[id] = await blobToData(b); }
-    const json = JSON.stringify({ app: "garaje-clasico", version: 2, exportado: new Date().toISOString(), coches: await idbAll("cars"), repuestos: S.parts, despiecePropio: localCat, registros: S.logs, documentos: S.docs, compra: S.shop, salidas: S.trips, fotos: files });
+    const json = JSON.stringify({ app: "garaje-clasico", version: 2, exportado: new Date().toISOString(), coches: await idbAll("cars"), repuestos: S.parts, despiecePropio: localCat, registros: S.logs, documentos: S.docs, compra: S.shop, salidas: S.trips, mapas: S.maps, fotos: files });
     const name = "garaje-clasico-" + today() + ".json";
     const file = new File([json], name, { type: "application/json" });
     const done = () => { lsSet("lastBackup", new Date().toISOString()); lsSet("backupSnooze", ""); render(); toast("Copia guardada"); };
@@ -373,6 +374,7 @@
       for (const x of d.documentos || []) await idbPut("docs", x);
       for (const x of d.compra || []) await idbPut("shop", x);
       for (const x of d.salidas || []) await idbPut("trips", x);
+      for (const x of d.mapas || []) await idbPut("maps", x);
       for (const [id, url] of Object.entries(d.fotos || {})) await idbPut("photos", await (await fetch(url)).blob(), id);
       photoCache.clear(); photoPending.clear(); await loadAll(); closeSheet(); render();
       toast("Copia restaurada");
@@ -380,7 +382,7 @@
   }
 
   // ---------- Sincronización entre móviles (repositorio privado de GitHub) ----------
-  const SYNC_STORES = ["cars", "parts", "catalog", "logs", "docs", "shop", "trips"];
+  const SYNC_STORES = ["cars", "parts", "catalog", "logs", "docs", "shop", "trips", "maps"];
   const syncCfg = () => { try { return JSON.parse(lsGet("syncCfg") || "null"); } catch { return null; } };
   const b64encode = (str) => { const bytes = new TextEncoder().encode(str); let out = ""; for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(out); };
   const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), c => c.charCodeAt(0)));
@@ -460,6 +462,7 @@
     S.cars.forEach(c => { if (c.photoId) ids.add(c.photoId); (c.gallery || []).forEach(i => ids.add(i)); });
     S.parts.forEach(p => p.photoId && ids.add(p.photoId));
     S.docs.forEach(d => d.fileId && ids.add(d.fileId));
+    S.maps.forEach(m => m.photoId && ids.add(m.photoId));
     if (!ids.size) return;
     const r = await gh("contents/archivos");
     const remote = r.ok ? new Set((await r.json()).map(f => f.name)) : new Set();
@@ -664,7 +667,7 @@
     if (found) {
       openSheet(`<h2>${esc(found.name)}</h2>
         <p class="lead">Ya lo tienes en el almacén: quedan ${qtyFmt(num(found.qty))} ${esc(found.unit || "ud")}.</p>
-        ${found.location ? `<p class="where"><svg><use href="#i-pin"/></svg><span>Está en <b>${esc(found.location)}</b></span></p>` : ""}
+        ${found.location ? `<p class="where"><svg><use href="#i-pin"/></svg><span>Está en <b>${esc(found.location)}</b></span>${pinFor(found.location) ? `<button class="mini" type="button" id="scMap">Ver en el mapa</button>` : ""}</p>` : ""}
         <div class="codebox"><span class="eyebrow">Código de barras</span><span class="mono">${esc(code)}</span></div>
         <div class="actions" style="flex-direction:column">
           <button class="btn primary" type="button" id="scPlus">Sumar 1 al almacén</button>
@@ -675,6 +678,7 @@
       $("#scPlus").onclick = async () => { found.qty = num(found.qty) + 1; await save("parts", found.id, strip(found)); closeSheet(); toast(`${found.name}: ahora tienes ${qtyFmt(num(found.qty))}`); };
       $("#scUse").onclick = () => useInVehicle(found);
       $("#scOpen").onclick = () => partForm(found);
+      $("#scMap")?.addEventListener("click", () => showOnMap(found.location));
     } else {
       openSheet(`<h2>Código nuevo</h2>
         <div class="codebox"><span class="eyebrow">Código de barras</span><span class="mono">${esc(code)}</span></div>
@@ -824,7 +828,7 @@
         ${field("p_qty", "Cantidad", part.qty ?? 1, { inputmode: "decimal" })}
         ${field("p_unit", "Unidad", part.unit || "ud", { options: UNITS })}
         ${field("p_min", "Avisar si quedan", part.minQty ?? "", { inputmode: "decimal", ph: "0 = sin aviso" })}
-        ${field("p_loc", "Dónde está guardado", part.location, { ph: "Estantería 2, caja azul", list: locations() })}
+        <div class="field"><label for="p_loc">Dónde está guardado</label><div class="with-btn"><input id="p_loc" value="${esc(part.location)}" placeholder="Estantería 2, caja azul" autocomplete="off" list="p_loc_list">${pinFor(part.location) ? `<button class="mini" type="button" id="locMap" aria-label="Ver en el mapa"><svg><use href="#i-pin"/></svg></button>` : ""}</div><datalist id="p_loc_list">${[...new Set([...S.maps.flatMap(m => (m.pins || []).map(p => p.label)), ...locations()])].map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist></div>
         ${field("p_price", "Precio (€)", part.price, { inputmode: "decimal" })}
         ${field("p_supplier", "Proveedor", part.supplier)}
         ${field("p_notes", "Notas", part.notes, { area: true, full: true })}
@@ -834,6 +838,7 @@
         <button class="btn primary" type="button" id="savePart">Guardar</button>
         ${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn" type="button" id="usePart"><svg><use href="#i-wrench"/></svg>Usar en un vehículo</button><button class="btn" type="button" id="webPart"><svg><use href="#i-web"/></svg>Buscar en web</button><button class="btn danger" type="button" id="delPart">Borrar</button>`}
       </div>`);
+    $("#locMap")?.addEventListener("click", () => showOnMap(part.location));
     $("#scanBarcode").addEventListener("click", async () => { const code = await scanCode(); if (code) { $("#p_barcode").value = code; toast("Código leído"); } });
     $("#savePart").addEventListener("click", async () => {
       const data = { ...strip(part), name: val("p_name"), carId: val("p_car"), category: val("p_cat"), brand: val("p_brand"), oem: val("p_oem").toUpperCase(), ref: val("p_ref").toUpperCase(), barcode: val("p_barcode"), qty: num(val("p_qty"), 0), unit: val("p_unit"), minQty: num(val("p_min"), 0), location: val("p_loc"), price: val("p_price"), supplier: val("p_supplier"), notes: val("p_notes"), catalogId: part.catalogId || "" };
@@ -1080,6 +1085,84 @@
     setTimeout(() => { window.print(); document.title = old; }, 300);
   }
 
+  // ---------- Mapa del taller ----------
+  // Fotos de las estanterías con una marca en cada sitio. El nombre de la marca es la «ubicación» de los repuestos.
+  const placeKey = (v) => norm(v).replace(/\s+/g, " ").trim();
+  const partsAt = (label) => S.parts.filter(p => placeKey(p.location) === placeKey(label));
+  function pinFor(location) {
+    const k = placeKey(location); if (!k) return null;
+    for (const map of S.maps) { const index = (map.pins || []).findIndex(p => placeKey(p.label) === k); if (index >= 0) return { map, index }; }
+    return null;
+  }
+  const showOnMap = (location) => { const f = pinFor(location); if (f) mapSheet(f.map, f.index); };
+  async function newMap(file) {
+    toast("Guardando la foto…");
+    const photoId = await storeImage(file, 2000, "map-"); if (!photoId) return;
+    const id = await save("maps", null, { name: "Estantería " + (S.maps.length + 1), photoId, pins: [] });
+    const m = S.maps.find(x => x.id === id); if (m) mapSheet(m);
+  }
+  async function savePins(map, pins, focus) {
+    const fresh = S.maps.find(m => m.id === map.id) || map;
+    await save("maps", fresh.id, { ...strip(fresh), pins });
+    mapSheet(S.maps.find(m => m.id === map.id), focus);
+  }
+  async function mapSheet(map, focus = -1) {
+    if (!map) return;
+    const url = await blobUrlAsync(map.photoId), pins = map.pins || [];
+    const plural = (n, a, b) => n + " " + (n === 1 ? a : b);
+    openSheet(`<h2>${esc(map.name)}</h2>
+      <p class="lead">Toca la foto donde está cada caja, cajón o balda y ponle un nombre. Ese nombre es el que se elige en «Dónde está guardado».</p>
+      <div class="map" id="mapBox"><img src="${esc(url)}" alt="Foto: ${esc(map.name)}" draggable="false">
+        ${pins.map((p, i) => `<button class="pin${i === focus ? " on" : ""}" type="button" data-pin="${i}" style="left:${p.x}%;top:${p.y}%" aria-label="${esc(p.label)}">${i + 1}</button>`).join("")}
+      </div>
+      <div id="pinPanel"></div>
+      ${pins.length ? `<div class="list">${pins.map((p, i) => `<button class="due-row" type="button" data-pin="${i}"><span class="due-main"><span class="due-name"><span class="pin-n">${i + 1}</span>${esc(p.label)}</span><span class="due-when">${plural(partsAt(p.label).length, "repuesto", "repuestos")}</span></span><svg class="chev" aria-hidden="true"><use href="#i-back"/></svg></button>`).join("")}</div>` : ""}
+      <div class="actions"><button class="btn" type="button" id="renMap">Cambiar el nombre</button><button class="btn danger" type="button" id="delMap">Borrar esta foto</button><button class="btn" type="button" data-close>Cerrar</button></div>`);
+    const panel = $("#pinPanel"), box = $("#mapBox");
+    const labelForm = (title, value, onOk, extra = "") => {
+      panel.innerHTML = `<div class="pin-panel"><div class="field full"><label for="pinLabel">${title}</label><input id="pinLabel" value="${esc(value)}" list="pinLabel_list" autocomplete="off" placeholder="Caja azul, cajón 2…"><datalist id="pinLabel_list">${locations().filter(l => !pinFor(l)).map(l => `<option value="${esc(l)}"></option>`).join("")}</datalist></div>
+        <div class="actions"><button class="btn primary" type="button" id="pinOk">Guardar</button><button class="btn" type="button" id="pinCancel">Cancelar</button>${extra}</div></div>`;
+      $("#pinOk").onclick = () => { const v = val("pinLabel"); if (!v) { toast("Escribe un nombre"); return; } onOk(v); };
+      $("#pinCancel").onclick = () => { box.querySelector(".pin.tmp")?.remove(); panel.innerHTML = ""; };
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+    const showPin = (i) => {
+      const p = pins[i]; if (!p) return;
+      box.querySelectorAll(".pin").forEach(b => b.classList.toggle("on", b.dataset.pin === String(i)));
+      const here = partsAt(p.label);
+      panel.innerHTML = `<div class="pin-panel"><div class="section-head result-head"><span class="eyebrow"><span class="pin-n">${i + 1}</span>${esc(p.label)}</span></div>
+        ${here.length ? `<div class="list">${here.map(x => `<div class="row"><button class="row-main" type="button" data-pin-part="${x.id}"><strong>${esc(x.name)}</strong><span class="row-meta"><span>${qtyFmt(num(x.qty))} ${esc(x.unit || "ud")}</span><span>${esc(carName(carById(x.carId)))}</span></span></button></div>`).join("")}</div>` : `<p class="note">Todavía no hay repuestos con esta ubicación.</p>`}
+        <div class="actions"><button class="btn" type="button" id="pinRen">Renombrar</button><button class="btn danger" type="button" id="pinDel">Quitar la marca</button></div></div>`;
+      panel.querySelectorAll("[data-pin-part]").forEach(b => b.onclick = () => partForm(S.parts.find(x => x.id === b.dataset.pinPart)));
+      $("#pinRen").onclick = () => labelForm("Nuevo nombre del sitio", p.label, async (v) => {
+        // los repuestos guardados ahí cambian también de ubicación
+        for (const x of here) await save("parts", x.id, { ...strip(x), location: v });
+        savePins(map, pins.map((q, j) => j === i ? { ...q, label: v } : q), i);
+      });
+      $("#pinDel").onclick = () => savePins(map, pins.filter((_, j) => j !== i));
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+    box.addEventListener("click", (e) => {
+      const pin = e.target.closest("[data-pin]");
+      if (pin) { showPin(Number(pin.dataset.pin)); return; }
+      const r = box.getBoundingClientRect();
+      const x = Math.round((e.clientX - r.left) / r.width * 1000) / 10, y = Math.round((e.clientY - r.top) / r.height * 1000) / 10;
+      box.querySelector(".pin.tmp")?.remove();
+      box.insertAdjacentHTML("beforeend", `<span class="pin tmp on" style="left:${x}%;top:${y}%">${pins.length + 1}</span>`);
+      labelForm("Nombre de este sitio", "", (v) => {
+        if (pinFor(v)) { toast("Ya hay un sitio con ese nombre"); return; }
+        savePins(map, [...pins, { x, y, label: v }], pins.length);
+      });
+    });
+    $("#sheetBody").querySelectorAll(".list [data-pin]").forEach(b => b.onclick = () => { showPin(Number(b.dataset.pin)); box.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+    $("#renMap").onclick = () => {
+      panel.innerHTML = `<div class="pin-panel"><div class="field full"><label for="mapNameIn">Nombre de la foto</label><input id="mapNameIn" value="${esc(map.name)}" autocomplete="off"></div><div class="actions"><button class="btn primary" type="button" id="mapNameOk">Guardar</button></div></div>`;
+      $("#mapNameOk").onclick = async () => { const v = val("mapNameIn"); if (!v) return; await save("maps", map.id, { ...strip(map), name: v }); mapSheet(S.maps.find(m => m.id === map.id)); };
+    };
+    $("#delMap").onclick = () => confirmSheet(`¿Borrar «${esc(map.name)}»?`, "Se borran la foto y sus marcas. Los repuestos no cambian.", async () => { await dropBlob(map.photoId); await remove("maps", map.id); closeSheet(); toast("Foto borrada"); });
+    if (focus >= 0) showPin(focus);
+  }
+
   // ---------- Lista de la compra ----------
   async function addToShop(item) {
     if (S.shop.some(x => x.catalogId && x.catalogId === item.id)) { toast("Ya está en la lista de la compra"); return; }
@@ -1265,7 +1348,7 @@
     ["i-cal", "Avisos", "Arriba del garaje salen los avisos: ITV, seguro, impuesto y mantenimientos que tocan. Tócalo para ir al vehículo."],
     ["i-wrench", "Mantenimiento", "Entra en un vehículo y pulsa «Registrar» junto a cada trabajo. Apunta el último cambio de aceite que recuerdes y la app empezará a contar."],
     ["i-moto", "Salidas", "Cuando saques uno, pulsa «Registrar salida» y apunta los km al volver. Si un vehículo lleva un mes parado te avisa para arrancarlo."],
-    ["i-box", "Almacén", "Guarda lo que tienes en el taller con su cantidad. Con − y + la cambias de un toque. Apunta dónde está guardado cada repuesto y lo encontrarás al momento. Si la caja tiene código de barras, pulsa «Escanear»."],
+    ["i-box", "Almacén", "Guarda lo que tienes en el taller con su cantidad. Con − y + la cambias de un toque. Apunta dónde está guardado cada repuesto; en «Taller» puedes hacer fotos de las estanterías y marcar cada caja. Si la caja tiene código de barras, pulsa «Escanear»."],
     ["i-cart", "Usar y comprar", "Al montar una pieza, ábrela y pulsa «Usar en un vehículo»: se descuenta y queda en el historial. Lo que baja del mínimo pasa solo a la lista de la compra."],
     ["i-gear", "Despiece y búsqueda", "Cada vehículo tiene sus piezas con referencia OEM. El botón del mundo busca la pieza en tiendas y desguaces."],
     ["i-doc", "Papeles y fotos", "En cada vehículo puedes guardar fotos, la ficha técnica, el seguro y las facturas, y sacar una ficha en PDF con todo su historial. En las notas, el micrófono te deja dictar en vez de escribir."],
@@ -1591,11 +1674,13 @@
     const toBuy = S.parts.filter(p => stockState(p) !== "ok").length + S.shop.length;
     const head = `
       <div class="section-head"><h2>Almacén</h2><button class="mini" type="button" data-scan><svg><use href="#i-scan"/></svg>Escanear</button></div>
-      <div class="seg two" role="group" aria-label="Vista del almacén">
+      <div class="seg" role="group" aria-label="Vista del almacén">
         <button type="button" data-sv="inv" aria-pressed="${S.stockView === "inv"}">Inventario · ${S.parts.length}</button>
-        <button type="button" data-sv="shop" aria-pressed="${S.stockView === "shop"}">Lista de la compra${toBuy ? " · " + toBuy : ""}</button>
+        <button type="button" data-sv="shop" aria-pressed="${S.stockView === "shop"}">Compra${toBuy ? " · " + toBuy : ""}</button>
+        <button type="button" data-sv="map" aria-pressed="${S.stockView === "map"}">Taller</button>
       </div>`;
     if (S.stockView === "shop") return head + viewShop();
+    if (S.stockView === "map") return head + viewWorkshop();
     let items = [...S.parts];
     if (S.stockCar !== "all") items = items.filter(p => (p.carId || "") === S.stockCar);
     if (S.stockFilter === "low") items = items.filter(p => stockState(p) !== "ok");
@@ -1612,10 +1697,18 @@
         <div class="filters" aria-label="Filtrar por vehículo">${fc("all", "Todos los vehículos")}${S.cars.map(c => fc(c.id, carName(c))).join("")}${fc("", "General")}</div>
         <div class="filters" aria-label="Filtrar por categoría">${f("all", "Todo")}${f("low", "Por reponer")}${usedCats.map(c => f(c, c)).join("")}</div>
         <div class="seg two" role="group" aria-label="Ordenar el almacén"><button type="button" data-sg="cat" aria-pressed="${!byLoc}">Por categoría</button><button type="button" data-sg="loc" aria-pressed="${byLoc}">Por ubicación</button></div>
-        ${items.length ? Object.keys(byCat).map(cat => `<div class="section-head result-head"><span class="eyebrow">${byLoc && cat !== NOLOC ? `<svg class="ico"><use href="#i-pin"/></svg>` : ""}${esc(cat)}</span></div><div class="list">${byCat[cat].map(p => partRow(p)).join("")}</div>`).join("") : `<p class="note">Nada con estos filtros.</p>`}`
+        ${items.length ? Object.keys(byCat).map(cat => `<div class="section-head result-head"><span class="eyebrow">${byLoc && cat !== NOLOC ? `<svg class="ico"><use href="#i-pin"/></svg>` : ""}${esc(cat)}</span>${byLoc && pinFor(cat) ? `<button class="link" type="button" data-map-loc="${esc(cat)}">Ver en el mapa</button>` : ""}</div><div class="list">${byCat[cat].map(p => partRow(p)).join("")}</div>`).join("") : `<p class="note">Nada con estos filtros.</p>`}`
       : `<div class="empty"><svg width="44" height="44" style="color:var(--brass)"><use href="#i-box"/></svg><h3>Almacén vacío</h3><p>Apunta lo que hay en el taller: bidones de aceite, filtros, bujías, pastillas… con su cantidad y dónde está guardado. Si la caja tiene código de barras, escanéalo.</p><div class="actions"><button class="btn primary" type="button" data-new-part>Añadir repuesto</button><button class="btn" type="button" data-scan><svg><use href="#i-scan"/></svg>Escanear</button></div></div>`);
   }
 
+  function viewWorkshop() {
+    const unplaced = locations().filter(l => !pinFor(l));
+    return `
+      ${S.maps.length ? `<div class="maps">${S.maps.map(m => { const n = (m.pins || []).length, k = (m.pins || []).reduce((t, p) => t + partsAt(p.label).length, 0); return `<button class="map-card" type="button" data-map="${m.id}">${blobUrl(m.photoId) ? `<img src="${esc(blobUrl(m.photoId))}" alt="">` : `<span class="map-ph"></span>`}<span class="map-text"><strong>${esc(m.name)}</strong><span>${n} ${n === 1 ? "sitio" : "sitios"} · ${k} ${k === 1 ? "repuesto" : "repuestos"}</span></span></button>`; }).join("")}</div>`
+      : `<div class="empty"><svg width="40" height="40" style="color:var(--brass)"><use href="#i-pin"/></svg><h3>El mapa del taller</h3><p>Haz una foto de cada estantería o armario y marca en ella dónde está cada caja. Al buscar un repuesto, la app te enseña el sitio exacto.</p></div>`}
+      <label class="btn primary"><input type="file" accept="image/*" id="mapInput" hidden><svg><use href="#i-cam"/></svg>Añadir foto del taller</label>
+      ${unplaced.length && S.maps.length ? `<p class="note">Sin marcar en ninguna foto: ${unplaced.map(esc).join(", ")}.</p>` : ""}`;
+  }
   function viewCatalog() {
     if (!S.cars.length) return `<div class="empty"><h3>Sin vehículos</h3><p>Añade un vehículo para ver y gestionar su despiece.</p><button class="btn primary" type="button" data-add-car>Añadir vehículo</button></div>`;
     if (!S.catCar || !carById(S.catCar)) S.catCar = S.cars[0].id;
@@ -1697,6 +1790,7 @@
     if (e.target.id === "q") { S.q = e.target.value; const r = $("#results"); const tmp = document.createElement("div"); tmp.innerHTML = viewSearch(); r.innerHTML = tmp.querySelector("#results").innerHTML; }
   });
   $("#view").addEventListener("change", async e => {
+    if (e.target.id === "mapInput") { const f = e.target.files[0]; e.target.value = ""; if (f) await newMap(f); return; }
     if (e.target.id === "galleryInput") { const files = [...e.target.files]; e.target.value = ""; const c = carById(S.carId); if (c && files.length) { toast("Guardando fotos…"); await addCarPhotos(c, files); } }
   });
 
@@ -1712,6 +1806,8 @@
     else if ("idleCfg" in d) intervalsForm(car);
     else if ("printCar" in d) printCar(car);
     else if (d.sg) { S.stockGroup = d.sg; render(); }
+    else if (d.map) mapSheet(S.maps.find(m => m.id === d.map));
+    else if (d.mapLoc) showOnMap(d.mapLoc);
     else if (d.go) { if (S.tab === "car" && d.go === "garage") leaveCar(); else { S.tab = d.go; render(); } }
     else if (d.goto) { S.tab = d.goto; render(); }
     else if ("gotoShop" in d) { S.tab = "stock"; S.stockView = "shop"; render(); scrollTo({ top: 0 }); }

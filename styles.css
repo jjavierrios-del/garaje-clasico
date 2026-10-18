@@ -371,3 +371,19 @@ a.btn.primary { color: var(--brass-ink); }
   .r-notes { white-space: pre-wrap; }
   .report footer { margin-top: 18px; font-size: 8pt; color: #777; }
 }
+
+/* Mapa del taller */
+.maps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.map-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); text-align: left; }
+.map-card img, .map-ph { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface-2); }
+.map-text { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+.map-text span { font-size: 0.8125rem; color: var(--muted); }
+.map { position: relative; border-radius: 12px; overflow: hidden; background: var(--surface-2); touch-action: manipulation; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.map img { display: block; width: 100%; height: auto; -webkit-touch-callout: none; }
+.pin { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; display: grid; place-items: center; background: var(--brass); color: var(--brass-ink); border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .45); font-weight: 700; font-size: 0.8125rem; padding: 0; }
+.pin.on { background: var(--crit); color: #fff; width: 42px; height: 42px; margin: -21px 0 0 -21px; z-index: 2; }
+.pin.tmp { opacity: .85; pointer-events: none; }
+.pin-n { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; margin-right: 8px; border-radius: 11px; background: var(--brass); color: var(--brass-ink); font-size: 0.75rem; font-weight: 700; letter-spacing: 0; vertical-align: 1px; }
+.pin-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.where .mini { margin-left: auto; }
+label.btn { cursor: pointer; }
