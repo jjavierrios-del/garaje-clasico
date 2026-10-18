@@ -333,10 +333,10 @@
     } catch { toast("Ese archivo no es una copia de Garaje Clásico"); }
   }
   // Enlace de alta: #importar=<json en base64url>. El fragmento nunca llega al servidor.
-  async function importFromLink() {
-    const m = location.hash.match(/^#importar=([A-Za-z0-9_-]+)/);
-    if (!m) return;
-    history.replaceState(null, "", location.pathname + location.search);
+  async function importFromLink(text = location.hash) {
+    const m = String(text).match(/#importar=([A-Za-z0-9_-]+)/);
+    if (!m) { if (text !== location.hash) toast("Ese texto no es un enlace de alta"); return; }
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
     let d;
     try {
       const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -364,6 +364,7 @@
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" id="exportBtn"><svg><use href="#i-down"/></svg>Hacer copia de seguridad</button>
         <button class="btn" type="button" id="importBtn">Restaurar una copia</button>
+        <button class="btn" type="button" id="pasteBtn">Pegar enlace de alta</button>
         <input type="file" id="importFile" hidden>
         <button class="btn" type="button" id="themeBtn">Cambiar tema claro / oscuro</button>
         <button class="btn" type="button" data-close>Cerrar</button>
@@ -371,6 +372,12 @@
       <p class="note">Despieces disponibles: ${libIndex.length ? libIndex.map(l => esc(l.title)).join(", ") : "ninguno todavía"}.</p>`);
     $("#exportBtn").addEventListener("click", exportBackup);
     $("#importBtn").addEventListener("click", () => $("#importFile").click());
+    $("#pasteBtn").addEventListener("click", () => {
+      openSheet(`<h2>Pegar enlace de alta</h2><p class="lead">Mantén pulsado el recuadro, elige «Pegar» y pulsa «Añadir».</p>
+        <div class="field"><label for="linkTxt">Enlace</label><textarea id="linkTxt" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></div>
+        <div class="actions"><button class="btn primary" type="button" id="linkGo">Añadir</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
+      $("#linkGo").addEventListener("click", () => importFromLink($("#linkTxt").value));
+    });
     $("#importFile").addEventListener("change", e => { const f = e.target.files[0]; if (f) confirmSheet("¿Restaurar esta copia?", "Se sustituyen todos los datos actuales del teléfono por los de la copia.", () => importBackup(f)); });
     $("#themeBtn").addEventListener("click", () => {
       const r = document.documentElement, cur = r.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
