@@ -137,5 +137,10 @@
    "verified": false,
    "notes": "Aparece en el catálogo del R11 sin indicar versión. Confírmalo con el bastidor en el despiece oficial antes de comprar."
   }
- ]
+ ],
+ "quick": {
+  "aceite": "15W-40 (por verificar)",
+  "capacidad": "3,25 L con filtro (por verificar)",
+  "bujias": "Champion N9YC o NGK BPR6ES (por verificar)"
+ }
 }

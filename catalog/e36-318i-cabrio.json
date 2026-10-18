@@ -163,5 +163,8 @@
    "verified": false,
    "notes": "Mira la referencia en RealOEM, grupo 54 (capota)."
   }
- ]
+ ],
+ "quick": {
+  "bujias": "NGK BKR6EK ×4 (por verificar)"
+ }
 }

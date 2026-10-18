@@ -224,5 +224,9 @@
    "source": "Historia SEAT",
    "url": "https://www.historiaseat.com/k124.htm"
   }
- ]
+ ],
+ "quick": {
+  "neumaticos": "155 SR 13",
+  "bujias": "Rosca M14 × 1,25 · 0,8–0,9 mm · 28 Nm"
+ }
 }

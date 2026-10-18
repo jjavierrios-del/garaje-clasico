@@ -1,5 +1,5 @@
 // Funciona sin conexión: la app se sirve desde caché y se actualiza en segundo plano.
-const CACHE = "garaje-v11";
+const CACHE = "garaje-v13";
 const CORE = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "catalog/index.json", "datos/garaje.json", "vendor/zxing-0.21.3.min.js"];
 
 self.addEventListener("install", e => {

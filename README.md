@@ -14,6 +14,11 @@ App para el móvil para llevar una colección de coches clásicos: la ficha de c
 - **Códigos de barras:** con la cámara o con una foto (usa [ZXing](https://github.com/zxing-js/library), licencia Apache 2.0, en `vendor/`).
 - **Documentos:** fotos o PDF de ficha técnica, seguro, ITV o facturas en cada vehículo.
 - **Copia de seguridad:** aviso cada 30 días para guardar una copia.
+- **Compartir entre móviles:** sincroniza datos, fotos y documentos a través de un repositorio **privado** de GitHub (Opciones → Compartir entre móviles).
+- **Calendario:** exporta ITV, seguro, impuesto y mantenimientos al calendario del móvil, con aviso 7 días antes.
+- **Datos rápidos:** aceite, capacidades, neumáticos, batería y bujías de cada vehículo.
+- **Tamaño de letra:** normal, grande o muy grande (Opciones).
+- **Fotos de los vehículos:** van en `fotos/` (ver `fotos/LEEME.md`).
 
 ## Publicar con GitHub Pages
 

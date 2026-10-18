@@ -62,7 +62,8 @@
    "color": "",
    "notes": "",
    "wiki": "en:Honda_Forza",
-   "kind": "moto"
+   "kind": "moto",
+   "photo": "fotos/honda-forza.jpg"
   },
   {
    "id": "c-r11",
@@ -73,12 +74,13 @@
    "vin": "VS5B37200G0005832",
    "engine": "",
    "catalogKey": "r11-gtl",
-   "plate": "",
+   "plate": "B-8566-GZ",
    "km": "",
    "color": "",
    "notes": "",
    "wiki": "en:Renault_11",
-   "kind": "coche"
+   "kind": "coche",
+   "photo": "fotos/renault-11.jpg"
   },
   {
    "id": "c-j54",
@@ -89,12 +91,13 @@
    "vin": "J54-15022",
    "engine": "4DR5",
    "catalogKey": "mitsubishi-j54",
-   "plate": "",
+   "plate": "H-9437-BBC",
    "km": "",
    "color": "",
    "notes": "",
    "wiki": "en:Mitsubishi_Jeep",
-   "kind": "coche"
+   "kind": "coche",
+   "photo": "fotos/mitsubishi-j54.jpg"
   },
   {
    "id": "c-w126",
@@ -105,12 +108,13 @@
    "vin": "WDB1260221A038003",
    "engine": "M 110",
    "catalogKey": "w126-280se",
-   "plate": "",
+   "plate": "LE-3352-K",
    "km": "",
    "color": "",
    "notes": "",
    "wiki": "en:Mercedes-Benz_W126",
-   "kind": "coche"
+   "kind": "coche",
+   "photo": "fotos/mercedes-280se.jpg"
   },
   {
    "id": "c-w110",
@@ -122,11 +126,12 @@
    "engine": "OM 621",
    "catalogKey": "w110-diesel",
    "notes": "Apuntado como 180 D. Por el chasis 110.110 y el año 1968 es un W110 200 D.",
-   "plate": "",
+   "plate": "MU-99367",
    "km": "",
    "color": "",
    "wiki": "en:Mercedes-Benz_W110",
-   "kind": "coche"
+   "kind": "coche",
+   "photo": "fotos/mercedes-200d.jpg"
   },
   {
    "id": "c-seat124",

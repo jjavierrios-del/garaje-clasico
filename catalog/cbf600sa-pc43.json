@@ -120,5 +120,12 @@
    "source": "Motorcycle News (CBF600 2008–2013)",
    "url": "https://www.motorcyclenews.com/bike-reviews/honda/cbf600/2008/"
   }
- ]
+ ],
+ "quick": {
+  "aceite": "10W-30 · API SG o superior",
+  "capacidad": "2,7 L (2,8 L con filtro)",
+  "neumaticos": "120/70-17 · 160/60-17",
+  "bateria": "Yuasa YTZ10S · 12 V 8,6 Ah",
+  "bujias": "NGK CR8EH-9 ×4 · 0,8–0,9 mm"
+ }
 }

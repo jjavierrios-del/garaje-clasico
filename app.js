@@ -95,7 +95,9 @@
   let wikiPhotos = {};
   try { wikiPhotos = JSON.parse(localStorage.getItem("wikiPhotos") || "{}"); } catch {}
   const ownPhoto = (c) => blobUrl(c?.photoId);
-  const photoUrl = (c) => ownPhoto(c) || (c && c.wiki && wikiPhotos[c.wiki]?.url) || "";
+  // Orden: foto hecha en el móvil, foto del vehículo subida al repositorio (fotos/), foto de Wikipedia
+  const wikiUrl = (c) => (c && c.wiki && wikiPhotos[c.wiki]?.url) || "";
+  const photoUrl = (c) => ownPhoto(c) || c?.photo || wikiUrl(c);
   async function resolveWikiPhotos() {
     const todo = [...new Set(S.cars.filter(c => c.wiki && !wikiPhotos[c.wiki]).map(c => c.wiki))];
     if (!todo.length || !navigator.onLine) return;
@@ -150,12 +152,13 @@
     localCat.filter(i => !i.deleted && !i.libId).forEach(i => out.push(i));
     S.catalog = out;
   }
+  const alive = (list) => list.filter(x => !x.deleted);
   async function loadAll() {
     const carsRaw = await idbAll("cars");
-    S.cars = carsRaw.filter(c => !c.deleted);
+    S.cars = alive(carsRaw);
     loadAll.removedCars = carsRaw.filter(c => c.deleted).map(c => c.id);
-    S.parts = await idbAll("parts"); localCat = await idbAll("catalog");
-    S.logs = await idbAll("logs"); S.docs = await idbAll("docs"); S.shop = await idbAll("shop");
+    S.parts = alive(await idbAll("parts")); localCat = await idbAll("catalog");
+    S.logs = alive(await idbAll("logs")); S.docs = alive(await idbAll("docs")); S.shop = alive(await idbAll("shop"));
     await Promise.all(S.cars.map(c => blobUrlAsync(c.photoId).catch(() => "")));
     mergeCatalog();
   }
@@ -167,18 +170,18 @@
       await idbPut(coll, obj);
       if (coll === "catalog") { const i = localCat.findIndex(x => x.id === id); i >= 0 ? localCat[i] = obj : localCat.push(obj); mergeCatalog(); }
       else { const i = S[coll].findIndex(x => x.id === id); i >= 0 ? S[coll][i] = obj : S[coll].push(obj); if (coll === "cars") mergeCatalog(); }
-      render();
+      render(); scheduleSync();
       return id;
     } catch (e) { toast("No se pudo guardar. Revisa el espacio del móvil"); return null; }
   }
   async function remove(coll, id) {
     try {
-      const item = coll === "catalog" ? S.catalog.find(i => i.id === id) : null;
-      if (item?.libId) await idbPut("catalog", { id, libId: item.libId, carId: item.carId, deleted: true });
-      else if (coll === "cars") await idbPut("cars", { id, deleted: true });
-      else await idbDel(coll, id);
+      // Se guarda una marca de borrado (no se elimina) para que el otro móvil también lo borre al sincronizar
+      const item = coll === "catalog" ? S.catalog.find(i => i.id === id) : null, now = new Date().toISOString();
+      if (item?.libId) await idbPut("catalog", { id, libId: item.libId, carId: item.carId, deleted: true, updatedAt: now });
+      else await idbPut(coll, { id, deleted: true, updatedAt: now });
       if (coll === "catalog") localCat = await idbAll("catalog"); else S[coll] = S[coll].filter(x => x.id !== id);
-      mergeCatalog(); render();
+      mergeCatalog(); render(); scheduleSync();
     } catch { toast("No se pudo borrar"); }
   }
   // Vehículos guardados en el repositorio (datos/garaje.json): se añaden los que falten, sin pisar cambios hechos en el móvil
@@ -192,13 +195,13 @@
         const cur = S.cars.find(c => c.id === seed.id);
         if (!cur) continue;
         const add = {};
-        for (const k of ["wiki", "kind"]) if (seed[k] && !cur[k]) add[k] = seed[k];
+        for (const k of ["wiki", "kind", "photo", "plate"]) if (seed[k] && !cur[k]) add[k] = seed[k];
         if (Object.keys(add).length) { await idbPut("cars", { ...cur, ...add }); changed = true; }
       }
       const nuevos = (d.coches || []).filter(c => c.id && !skip.has(c.id));
       if (!nuevos.length) { if (changed) { await loadAll(); render(); } return; }
-      const now = new Date().toISOString();
-      for (const c of nuevos) await idbPut("cars", { createdAt: now, updatedAt: now, ...c });
+      const old = "2000-01-01T00:00:00.000Z";
+      for (const c of nuevos) await idbPut("cars", { createdAt: old, updatedAt: old, ...c });
       await loadAll(); render();
       toast(nuevos.length === 1 ? "1 vehículo añadido" : nuevos.length + " vehículos añadidos");
     } catch {}
@@ -300,6 +303,8 @@
   function backupNeeded() {
     const has = S.parts.length + S.logs.length + S.docs.length + S.shop.length > 0 || S.cars.some(c => c.photoId || c.gallery?.length || c.itvDate || c.insuranceDate);
     if (!has) return null;
+    const ls = lsGet("lastSync");
+    if (syncCfg() && ls && Date.now() - new Date(ls) < BACKUP_DAYS * 86400000) return null;
     const last = lsGet("lastBackup"), snooze = lsGet("backupSnooze");
     if (snooze && new Date(snooze) > new Date()) return null;
     if (!last) return "Todavía no has guardado ninguna copia de tus datos.";
@@ -341,6 +346,214 @@
       photoCache.clear(); photoPending.clear(); await loadAll(); closeSheet(); render();
       toast("Copia restaurada");
     } catch { toast("Ese archivo no es una copia de Garaje Clásico"); }
+  }
+
+  // ---------- Sincronización entre móviles (repositorio privado de GitHub) ----------
+  const SYNC_STORES = ["cars", "parts", "catalog", "logs", "docs", "shop"];
+  const syncCfg = () => { try { return JSON.parse(lsGet("syncCfg") || "null"); } catch { return null; } };
+  const b64encode = (str) => { const bytes = new TextEncoder().encode(str); let out = ""; for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(out); };
+  const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), c => c.charCodeAt(0)));
+  const b64url = (str) => b64encode(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const unb64url = (s) => { const b = s.replace(/-/g, "+").replace(/_/g, "/"); return b64decode(b + "===".slice((b.length + 3) % 4)); };
+  const setSyncState = (t) => { const el = $("#syncState"); if (el) el.textContent = t; };
+  async function gh(path, { raw, cfg = syncCfg(), ...opts } = {}) {
+    const headers = { Authorization: "Bearer " + cfg.token, Accept: raw ? "application/vnd.github.raw" : "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+    if (opts.body) headers["Content-Type"] = "application/json";
+    return fetch(`https://api.github.com/repos/${cfg.repo}${path ? "/" + path : ""}`, { ...opts, headers, cache: "no-store" });
+  }
+  const ghError = (r) => r.status === 401 ? "El token no es válido o ha caducado." : r.status === 403 ? "El token no tiene permiso para ese repositorio." : r.status === 404 ? "No encuentro el repositorio o el token no tiene acceso a él." : "GitHub respondió con un error (" + r.status + ").";
+  async function getRemote() {
+    const r = await gh("contents/garaje.json");
+    if (r.status === 404) return { sha: null, data: null };
+    if (!r.ok) throw new Error(ghError(r));
+    const j = await r.json();
+    let text = j.encoding === "base64" && j.content ? b64decode(j.content) : null;
+    if (text === null) { const rr = await gh("contents/garaje.json", { raw: true }); if (!rr.ok) throw new Error(ghError(rr)); text = await rr.text(); }
+    return { sha: j.sha, data: JSON.parse(text) };
+  }
+  const newer = (a, b) => (a.updatedAt || "") >= (b.updatedAt || "") ? a : b;
+  function mergeSets(local, remote) {
+    const m = new Map((remote || []).map(x => [x.id, x]));
+    for (const x of local || []) { const o = m.get(x.id); m.set(x.id, o ? newer(x, o) : x); }
+    return [...m.values()];
+  }
+  let syncing = false, syncAgain = false, syncTimer = null;
+  function scheduleSync() { if (!syncCfg()) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(), 3000); }
+  async function syncNow(manual = false) {
+    if (!syncCfg()) return;
+    if (!navigator.onLine) { setSyncState("Sin conexión"); if (manual) toast("No hay conexión a internet"); return; }
+    if (syncing) { syncAgain = true; return; }
+    syncing = true; setSyncState("Sincronizando…");
+    try {
+      let done = false;
+      for (let attempt = 0; attempt < 3 && !done; attempt++) {
+        const { sha, data } = await getRemote();
+        const remote = data?.stores || {}, merged = {};
+        let localChanged = false, remoteChanged = !data;
+        for (const st of SYNC_STORES) {
+          const loc = await idbAll(st);
+          merged[st] = mergeSets(loc, remote[st]);
+          const locMap = new Map(loc.map(x => [x.id, JSON.stringify(x)])), remMap = new Map((remote[st] || []).map(x => [x.id, JSON.stringify(x)]));
+          for (const x of merged[st]) {
+            const j = JSON.stringify(x);
+            if (locMap.get(x.id) !== j) { await idbPut(st, x); localChanged = true; }
+            if (remMap.get(x.id) !== j) remoteChanged = true;
+          }
+        }
+        if (remoteChanged) {
+          const body = { message: "Garaje Clásico: sincronización", content: b64encode(JSON.stringify({ app: "garaje-clasico", version: 1, updated: new Date().toISOString(), stores: merged })) };
+          if (sha) body.sha = sha;
+          const r = await gh("contents/garaje.json", { method: "PUT", body: JSON.stringify(body) });
+          if (r.status === 409 || r.status === 422) continue; // el otro móvil acaba de guardar: se vuelve a mezclar
+          if (!r.ok) throw new Error(ghError(r));
+        }
+        if (localChanged) { await loadAll(); render(); }
+        done = true;
+      }
+      if (!done) throw new Error("El otro móvil está guardando a la vez. Se reintentará.");
+      await syncFiles();
+      lsSet("lastSync", new Date().toISOString());
+      setSyncState("Sincronizado"); render();
+      if (manual) toast("Sincronizado");
+    } catch (e) {
+      setSyncState("Sin sincronizar");
+      if (manual) toast(e.message || "No se pudo sincronizar");
+    } finally {
+      syncing = false;
+      if (syncAgain) { syncAgain = false; scheduleSync(); }
+    }
+  }
+  // Fotos y documentos: cada archivo se guarda una vez en la carpeta «archivos» del repositorio
+  async function syncFiles() {
+    const ids = new Set();
+    S.cars.forEach(c => { if (c.photoId) ids.add(c.photoId); (c.gallery || []).forEach(i => ids.add(i)); });
+    S.parts.forEach(p => p.photoId && ids.add(p.photoId));
+    S.docs.forEach(d => d.fileId && ids.add(d.fileId));
+    if (!ids.size) return;
+    const r = await gh("contents/archivos");
+    const remote = r.ok ? new Set((await r.json()).map(f => f.name)) : new Set();
+    for (const id of ids) {
+      const local = await getBlob(id);
+      if (local && !remote.has(id)) {
+        const put = await gh("contents/archivos/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify({ message: "Archivo " + id, content: (await blobToData(local)).split(",")[1] }) });
+        if (!put.ok && put.status !== 422) throw new Error(ghError(put));
+      } else if (!local && remote.has(id)) {
+        const g = await gh("contents/archivos/" + encodeURIComponent(id), { raw: true });
+        if (!g.ok) continue;
+        const doc = S.docs.find(d => d.fileId === id);
+        await idbPut("photos", new Blob([await g.arrayBuffer()], { type: doc?.mime || "image/jpeg" }), id);
+        photoPending.delete(id); render();
+      }
+    }
+  }
+  async function connectSync(cfg) {
+    if (!/^[\w.-]+\/[\w.-]+$/.test(cfg.repo || "")) { toast("Escribe el repositorio como usuario/nombre"); return false; }
+    if (!cfg.token) { toast("Pega el token"); return false; }
+    let r;
+    try { r = await gh("", { cfg }); } catch { toast("No hay conexión con GitHub"); return false; }
+    if (!r.ok) { toast(ghError(r)); return false; }
+    const j = await r.json();
+    if (!j.private) { toast("Ese repositorio es público: hazlo privado antes de guardar ahí tus datos"); return false; }
+    if (j.permissions && !j.permissions.push) { toast("El token no tiene permiso de escritura (Contents: Read and write)"); return false; }
+    lsSet("syncCfg", JSON.stringify({ repo: cfg.repo, token: cfg.token }));
+    await syncNow(true);
+    return true;
+  }
+  function syncSheet() {
+    const cfg = syncCfg(), last = lsGet("lastSync");
+    if (!cfg) {
+      openSheet(`<h2>Compartir entre móviles</h2>
+        <p class="lead">Guarda los datos en un repositorio privado de GitHub para veros lo mismo en los dos móviles. Solo podéis verlo vosotros.</p>
+        <ol class="steps">
+          <li>En GitHub crea un repositorio <b>privado</b>, por ejemplo <span class="mono">garaje-datos</span>.</li>
+          <li>Crea un token en <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens</a> con acceso solo a ese repositorio y el permiso <b>Contents: Read and write</b>.</li>
+          <li>Pega aquí el repositorio y el token.</li>
+        </ol>
+        <form class="form">${field("y_repo", "Repositorio", "", { full: true, mono: true, ph: "usuario/garaje-datos" })}${field("y_token", "Token", "", { full: true, mono: true, ph: "github_pat_…" })}</form>
+        <div class="actions"><button class="btn primary" type="button" id="syncGo">Conectar</button><button class="btn" type="button" data-close>Cancelar</button></div>
+        <p class="note">¿Te han mandado un enlace? Ciérralo y usa «Pegar enlace» en Opciones.</p>`);
+      $("#syncGo").onclick = async () => { $("#syncGo").disabled = true; const ok = await connectSync({ repo: val("y_repo"), token: val("y_token") }); if (ok) closeSheet(); else if ($("#syncGo")) $("#syncGo").disabled = false; };
+      return;
+    }
+    openSheet(`<h2>Compartir entre móviles</h2>
+      <p class="lead">Conectado a <span class="mono">${esc(cfg.repo)}</span>. ${last ? "Última sincronización: " + new Date(last).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + "." : "Todavía no se ha sincronizado."}</p>
+      <div class="actions" style="flex-direction:column">
+        <button class="btn primary" type="button" id="syncNowBtn">Sincronizar ahora</button>
+        <button class="btn" type="button" id="syncLink">Enlace para el otro móvil</button>
+        <button class="btn danger" type="button" id="syncOff">Desconectar este móvil</button>
+      </div>
+      <p class="note">Los cambios se sincronizan solos al abrir la app y unos segundos después de cada cambio, si hay conexión.</p>`);
+    $("#syncNowBtn").onclick = () => syncNow(true);
+    $("#syncLink").onclick = () => {
+      const link = location.origin + location.pathname + "#sync=" + b64url(JSON.stringify(cfg));
+      openSheet(`<h2>Enlace para el otro móvil</h2><p class="lead">Mándalo por WhatsApp. En el otro móvil: Opciones → «Pegar enlace».</p><pre class="share-text" id="syncTxt">${esc(link)}</pre>
+        <p class="banner">El enlace lleva la llave de acceso a vuestros datos: mándalo solo a tu padre.</p>
+        <div class="actions"><button class="btn primary" type="button" id="copySync">Copiar el enlace</button>${navigator.share ? `<button class="btn" type="button" id="shareSync">Compartir</button>` : ""}</div>`);
+      $("#copySync").onclick = () => copyText(link, $("#syncTxt"), "Enlace copiado");
+      $("#shareSync")?.addEventListener("click", () => navigator.share({ text: link }).catch(() => {}));
+    };
+    $("#syncOff").onclick = () => confirmSheet("¿Desconectar este móvil?", "Los datos se quedan en este teléfono y en GitHub, pero dejan de sincronizarse.", async () => { lsSet("syncCfg", ""); setSyncState("En este teléfono"); closeSheet(); toast("Desconectado"); });
+  }
+
+  // ---------- Avisos en el calendario del móvil ----------
+  function calendarEvents(cars) {
+    const ev = [];
+    for (const c of cars) {
+      const name = carName(c);
+      DATE_FIELDS.forEach(([f, label]) => { if (c[f]) ev.push({ uid: `${c.id}-${f}`, date: c[f], title: `${label} · ${name}`, desc: f === "itvDate" ? "Pasar la ITV" : f === "insuranceDate" ? "Renovar el seguro" + (c.insurer ? " (" + c.insurer + ")" : "") : "Pagar el impuesto de circulación" }); });
+      taskList(c).filter(t => !t.off).forEach(t => {
+        const st = taskStatus(c, t);
+        if (st.dueDate) ev.push({ uid: `${c.id}-tarea-${t.k}`, date: st.days < 0 ? today() : st.dueDate, title: `${t.name} · ${name}`, desc: `Mantenimiento. Último: ${fmtDate(st.last.date)}${st.last.km ? " a los " + kmFmt(st.last.km) : ""}.` });
+      });
+      S.docs.filter(d => d.carId === c.id && d.expiry && !DOC_DATE_FIELD[d.type]).forEach(d => ev.push({ uid: `${c.id}-doc-${d.id}`, date: d.expiry, title: `Caduca: ${d.title || d.type} · ${name}`, desc: d.type }));
+    }
+    return ev.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  function buildICS(events) {
+    const ie = (t) => String(t).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+    const d8 = (d) => d.replace(/-/g, ""), nextDay = (d) => { const x = atNoon(d); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10).replace(/-/g, ""); };
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+    const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Garaje Clasico//ES", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Garaje Clásico"];
+    // Aviso 7 días antes y el mismo día, a las 9:00
+    for (const e of events) L.push("BEGIN:VEVENT", `UID:${e.uid}@garaje-clasico`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d8(e.date)}`, `DTEND;VALUE=DATE:${nextDay(e.date)}`, `SUMMARY:${ie(e.title)}`, `DESCRIPTION:${ie(e.desc)}`, "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${ie(e.title)}`, "TRIGGER:-P6DT15H", "END:VALARM", "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${ie(e.title)}`, "TRIGGER:PT9H", "END:VALARM", "END:VEVENT");
+    L.push("END:VCALENDAR");
+    return L.join("\r\n") + "\r\n";
+  }
+  function calendarSheet(cars) {
+    const ev = calendarEvents(cars);
+    if (!ev.length) { toast("No hay fechas: pon la ITV y el seguro o registra un mantenimiento"); return; }
+    const ics = buildICS(ev), file = new File([ics], "garaje-clasico.ics", { type: "text/calendar" });
+    const url = URL.createObjectURL(file), ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    openSheet(`<h2>Añadir al calendario</h2>
+      <p class="lead">${ev.length} ${ev.length === 1 ? "fecha" : "fechas"} con aviso 7 días antes y el mismo día a las 9:00.</p>
+      <div class="list">${ev.slice(0, 8).map(e => `<div class="due-row"><span class="due-main"><span class="due-name">${esc(e.title)}</span><span class="due-when">${fmtDate(e.date)}</span></span></div>`).join("")}</div>
+      ${ev.length > 8 ? `<p class="note">Y ${ev.length - 8} más.</p>` : ""}
+      <div class="actions" style="flex-direction:column">
+        <a class="btn primary" href="${url}" ${ios ? 'target="_blank" rel="noopener"' : 'download="garaje-clasico.ics"'}><svg><use href="#i-cal"/></svg>Abrir en el calendario</a>
+        ${navigator.canShare?.({ files: [file] }) ? `<button class="btn" type="button" id="shareIcs">Compartir el archivo</button>` : ""}
+      </div>
+      <p class="note">${ios ? "Se abre el Calendario: pulsa «Añadir todo»." : "Ábrelo con Google Calendar o con el calendario del móvil."} Si cambias fechas, vuelve a añadirlo: se actualizan las mismas citas.</p>`);
+    $("#shareIcs")?.addEventListener("click", () => navigator.share({ files: [file], title: "Avisos de Garaje Clásico" }).catch(() => {}));
+  }
+
+  // ---------- Datos rápidos ----------
+  const QUICK = [["aceite", "Aceite de motor"], ["capacidad", "Capacidad de aceite"], ["refrigerante", "Anticongelante"], ["frenos", "Líquido de frenos"], ["neumaticos", "Neumáticos"], ["presion", "Presión de neumáticos"], ["bateria", "Batería"], ["bujias", "Bujías o calentadores"], ["otros", "Otros datos"]];
+  const quickRef = (c) => libDocs[c.catalogKey]?.quick || {};
+  function quickCard(c) {
+    const own = c.quick || {}, ref = quickRef(c);
+    const rows = QUICK.filter(([k]) => own[k] || ref[k]).map(([k, label]) => `<div class="q-item${k === "otros" ? " wide" : ""}"><span>${label}</span><b>${esc(own[k] || ref[k])}</b>${!own[k] ? `<small>Dato de referencia</small>` : ""}</div>`).join("");
+    return `<div class="section-head result-head"><span class="eyebrow">Datos rápidos</span><button class="link" type="button" data-quick>Editar</button></div>
+      ${rows ? `<div class="quick">${rows}</div>` : `<button class="due-row quick-empty" type="button" data-quick><span class="due-main"><span class="due-name">Apunta los datos que más consultas</span><span class="due-when">Aceite y cuánto lleva, presión de neumáticos, batería, bujías…</span></span><svg class="chev" aria-hidden="true"><use href="#i-back"/></svg></button>`}`;
+  }
+  function quickForm(c) {
+    const own = c.quick || {}, ref = quickRef(c);
+    openSheet(`<h2>Datos rápidos</h2><p class="lead">Lo que se mira con el capó abierto en el ${esc(carName(c))}. Si dejas un campo vacío se muestra el dato de referencia, cuando lo hay.</p>
+      <form class="form">${QUICK.map(([k, label]) => field("q_" + k, label, own[k] || "", { full: true, ph: ref[k] || "", area: k === "otros" })).join("")}</form>
+      <div class="actions"><button class="btn primary" type="button" id="saveQuick">Guardar</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
+    $("#saveQuick").onclick = async () => {
+      const q = {}; QUICK.forEach(([k]) => { const v = val("q_" + k); if (v) q[k] = v; });
+      await save("cars", c.id, { ...strip(c), quick: q }); closeSheet(); toast("Datos guardados");
+    };
   }
 
   // ---------- Lector de códigos de barras ----------
@@ -546,7 +759,7 @@
     });
     $("#delCar")?.addEventListener("click", () => confirmSheet(`¿Borrar ${esc(carName(car))}?`, "Se borran su despiece, su historial, sus fotos y sus documentos. Los repuestos del almacén se quedan como «General».", async () => {
       for (const p of S.parts.filter(p => p.carId === car.id)) await save("parts", p.id, { ...strip(p), carId: "" });
-      for (const it of localCat.filter(i => i.carId === car.id)) await idbDel("catalog", it.id);
+      for (const it of localCat.filter(i => i.carId === car.id && !i.deleted)) await idbPut("catalog", { ...it, deleted: true, updatedAt: new Date().toISOString() });
       localCat = await idbAll("catalog");
       for (const l of S.logs.filter(l => l.carId === car.id)) await remove("logs", l.id);
       for (const d of S.docs.filter(d => d.carId === car.id)) { await dropBlob(d.fileId); await remove("docs", d.id); }
@@ -883,8 +1096,17 @@
 
   // Enlace de alta: #importar=<json en base64url>. El fragmento nunca llega al servidor.
   async function importFromLink(text = location.hash) {
+    const sm = String(text).match(/#sync=([A-Za-z0-9_-]+)/);
+    if (sm) {
+      if (location.hash) history.replaceState(history.state, "", location.pathname + location.search);
+      let cfg; try { cfg = JSON.parse(unb64url(sm[1])); } catch { toast("El enlace está incompleto"); return; }
+      openSheet(`<h2>Compartir entre móviles</h2><p class="lead">Este móvil se conectará a <span class="mono">${esc(cfg.repo)}</span> y se juntarán sus datos con los del otro móvil. No se borra nada.</p>
+        <div class="actions"><button class="btn primary" type="button" id="syncYes">Conectar</button><button class="btn" type="button" data-close>Ahora no</button></div>`);
+      $("#syncYes").onclick = async () => { $("#syncYes").disabled = true; if (await connectSync(cfg)) closeSheet(); else if ($("#syncYes")) $("#syncYes").disabled = false; };
+      return;
+    }
     const m = String(text).match(/#importar=([A-Za-z0-9_-]+)/);
-    if (!m) { if (text !== location.hash) toast("Ese texto no es un enlace de alta"); return; }
+    if (!m) { if (text !== location.hash) toast("Ese texto no es un enlace de la app"); return; }
     if (location.hash) history.replaceState(null, "", location.pathname + location.search);
     let d;
     try {
@@ -914,16 +1136,23 @@
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" id="exportBtn"><svg><use href="#i-down"/></svg>Hacer copia de seguridad</button>
         <button class="btn" type="button" id="importBtn">Restaurar una copia</button>
-        <button class="btn" type="button" id="pasteBtn">Pegar enlace de alta</button>
+        <button class="btn" type="button" id="syncBtn">Compartir entre móviles${syncCfg() ? " · conectado" : ""}</button>
+        <button class="btn" type="button" id="pasteBtn">Pegar enlace</button>
         <input type="file" id="importFile" hidden>
         <button class="btn" type="button" id="themeBtn">Cambiar tema claro / oscuro</button>
+        <div class="field"><span class="eyebrow">Tamaño de la letra</span><div class="seg" role="group" aria-label="Tamaño de la letra">${[["", "Normal"], ["grande", "Grande"], ["muy-grande", "Muy grande"]].map(([k, l]) => `<button type="button" data-text-size="${k}" aria-pressed="${(lsGet("textSize") || "") === k}">${l}</button>`).join("")}</div></div>
         <button class="btn" type="button" data-close>Cerrar</button>
       </div>
       <p class="note">Despieces disponibles: ${libIndex.length ? libIndex.map(l => esc(l.title)).join(", ") : "ninguno todavía"}.</p>`);
     $("#exportBtn").addEventListener("click", exportBackup);
+    $("#syncBtn").addEventListener("click", syncSheet);
+    document.querySelectorAll("[data-text-size]").forEach(b => b.addEventListener("click", () => {
+      setTextSize(b.dataset.textSize);
+      document.querySelectorAll("[data-text-size]").forEach(x => x.setAttribute("aria-pressed", x === b));
+    }));
     $("#importBtn").addEventListener("click", () => $("#importFile").click());
     $("#pasteBtn").addEventListener("click", () => {
-      openSheet(`<h2>Pegar enlace de alta</h2><p class="lead">Mantén pulsado el recuadro, elige «Pegar» y pulsa «Añadir».</p>
+      openSheet(`<h2>Pegar enlace</h2><p class="lead">Mantén pulsado el recuadro, elige «Pegar» y pulsa «Añadir».</p>
         <div class="field"><label for="linkTxt">Enlace</label><textarea id="linkTxt" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></div>
         <div class="actions"><button class="btn primary" type="button" id="linkGo">Añadir</button><button class="btn" type="button" data-close>Cancelar</button></div>`);
       $("#linkGo").addEventListener("click", () => importFromLink($("#linkTxt").value));
@@ -1009,9 +1238,9 @@
     return `<div class="groups">${order.filter(g => by[g]).map((g, idx) => `<details class="group"${idx === 0 || S.q ? " open" : ""}><summary>${esc(g)}<span class="count">${by[g].length} ${by[g].length === 1 ? "pieza" : "piezas"}</span></summary>${by[g].sort((a, b) => a.name.localeCompare(b.name, "es")).map(i => catRow(i, showCar)).join("")}</details>`).join("")}</div>`;
   }
   const carVisual = (c, big = false) => {
-    const url = photoUrl(c), ref = url && !ownPhoto(c);
+    const url = photoUrl(c), ref = url && !ownPhoto(c) && !c.photo, alt = !ownPhoto(c) && c.photo ? wikiUrl(c) : "";
     return `<div class="car-photo${big ? " big" : ""}${url ? "" : " no-photo"}">
-      ${url ? `<img src="${esc(url)}" alt="${esc(carName(c))}" loading="lazy" onerror="this.remove()">` : ""}
+      ${url ? `<img src="${esc(url)}" alt="${esc(carName(c))}" loading="lazy" data-alt="${esc(alt)}" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{this.remove()}">` : ""}
       <span class="monogram" aria-hidden="true">${esc(c.make || c.model || "?")}</span>
       <div class="shade"></div>
       <div class="badges">${c.plate ? `<span class="plate">${esc(c.plate)}</span>` : `<span class="kind"><svg><use href="#${isMoto(c) ? "i-moto" : "i-car"}"/></svg>${isMoto(c) ? "Moto" : "Coche"}</span>`}${c.year ? `<span class="year-badge">${esc(c.year)}</span>` : ""}</div>
@@ -1046,7 +1275,7 @@
         <button class="gauge ${alerts.length ? "alert" : ""}" type="button" data-goto-alerts><b>${alerts.length}</b><span>Avisos</span></button>
         <button class="gauge ${low ? "alert" : ""}" type="button" data-goto-shop><b>${low}</b><span>Por comprar</span></button>
       </div>
-      ${alerts.length ? `<div class="section-head" id="avisos"><h2>Avisos</h2><span class="eyebrow">${alerts.length}</span></div>
+      ${alerts.length ? `<div class="section-head" id="avisos"><h2>Avisos</h2><button class="link" type="button" data-cal-all><svg class="ico"><use href="#i-cal"/></svg>Al calendario</button></div>
         <div class="list">${shown.map(alertRow).join("")}</div>
         ${alerts.length > shown.length ? `<button class="btn" type="button" data-all-alerts>Ver los ${alerts.length} avisos</button>` : ""}`
       : anyTracking ? `<p class="ok-line">${pill("ok", "Todo al día")} Ningún papel ni mantenimiento pendiente en los próximos 30 días.</p>`
@@ -1084,7 +1313,8 @@
     }).join("");
     const logs = carLogs(c.id);
     return `
-      <div class="section-head result-head"><span class="eyebrow">Papeles</span></div>
+      ${quickCard(c)}
+      <div class="section-head result-head"><span class="eyebrow">Papeles</span><button class="link" type="button" data-cal-car>Al calendario</button></div>
       <div class="list">${dates}</div>
       <div class="section-head result-head"><span class="eyebrow">Mantenimiento${c.km ? " · " + kmFmt(c.km) : ""}</span><button class="link" type="button" data-km>${c.km ? "Actualizar km" : "Poner los km"}</button></div>
       <div class="list">${tasks}</div>
@@ -1297,6 +1527,9 @@
     else if (d.log) logForm(S.logs.find(l => l.id === d.log));
     else if (d.openLog) { const l = S.logs.find(x => x.id === d.openLog); if (l) logForm(l); }
     else if ("intervals" in d) intervalsForm(car);
+    else if ("quick" in d) quickForm(car);
+    else if ("calCar" in d) calendarSheet([car]);
+    else if ("calAll" in d) calendarSheet(S.cars);
     else if ("dates" in d) datesForm(car);
     else if ("km" in d) kmForm(car);
     else if ("newDoc" in d) docForm({}, S.carId);
@@ -1339,11 +1572,13 @@
 
   // ---------- Arranque ----------
   { const t = lsGet("theme"); if (t) document.documentElement.dataset.theme = t; }
+  function setTextSize(k) { lsSet("textSize", k || ""); if (k) document.documentElement.dataset.text = k; else delete document.documentElement.dataset.text; }
+  setTextSize(lsGet("textSize"));
   try { const ui = JSON.parse(lsGet("ui") || "{}"); if (ui.tab) S.tab = ui.tab; if (ui.catCar) S.catCar = ui.catCar; if (ui.stockView) S.stockView = ui.stockView; } catch {}
   render();
 
   (async () => {
-    try { await loadAll(); S.ready = true; $("#syncState").textContent = "En este teléfono"; }
+    try { await loadAll(); S.ready = true; setSyncState(syncCfg() ? "Sincronizando…" : "En este teléfono"); }
     catch { render.err = "Este navegador no permite guardar datos. Abre la app en Safari o Chrome, fuera del modo incógnito."; $("#syncState").textContent = "Sin almacenamiento"; }
     render();
     navigator.storage?.persist?.().catch(() => {});
@@ -1351,6 +1586,10 @@
     await seedGarage();
     importFromLink();
     resolveWikiPhotos();
+    syncNow();
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - new Date(lsGet("lastSync") || 0) > 60000) syncNow(); });
+    window.addEventListener("online", () => syncNow());
+    window.addEventListener("hashchange", () => importFromLink());
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
   })();
 })();

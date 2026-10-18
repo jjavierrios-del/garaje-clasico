@@ -128,5 +128,12 @@
    "source": "Ficha técnica oficial Honda",
    "url": "https://www.honda.co.uk/motorcycles/range/scooter/forza-350/specifications-and-price.html"
   }
- ]
+ ],
+ "quick": {
+  "aceite": "10W-30 · JASO MB",
+  "capacidad": "≈1,5 L con filtro (1,8 L total)",
+  "neumaticos": "120/70-15 · 140/70-14",
+  "bateria": "12 V 9,1 Ah (YTZ10S)",
+  "bujias": "NGK LMAR8L-9 ×1"
+ }
 }
