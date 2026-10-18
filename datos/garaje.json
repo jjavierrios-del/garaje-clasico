@@ -127,6 +127,22 @@
    "color": "",
    "wiki": "en:Mercedes-Benz_W110",
    "kind": "coche"
+  },
+  {
+   "id": "c-seat124",
+   "make": "SEAT",
+   "model": "124",
+   "version": "Serie FL · berlina",
+   "year": "1978",
+   "vin": "FL206542",
+   "engine": "1.197 cc",
+   "plate": "ZA-0240-C",
+   "catalogKey": "seat-124-fl-1200",
+   "notes": "Primera matriculación: 28/04/1978. Gasolina, 1.197 cc.",
+   "km": "",
+   "color": "",
+   "wiki": "en:SEAT_124",
+   "kind": "coche"
   }
  ]
 }

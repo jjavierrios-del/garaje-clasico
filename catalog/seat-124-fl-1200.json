@@ -1,0 +1,228 @@
+{
+ "title": "SEAT 124 FL 1200 (2.ª serie · 1975–1980)",
+ "vehicle": "SEAT 124 berlina de 1978, segunda serie (FL, 1975–1980). Motor de gasolina de 4 cilindros y 1.197 cc (65 CV DIN según las fichas de la serie), árbol de levas lateral con cadena y carburador vertical de doble cuerpo.",
+ "links": [
+  {
+   "label": "Historia y datos técnicos del SEAT 124 (Historia SEAT)",
+   "url": "https://www.historiaseat.com/k124.htm"
+  },
+  {
+   "label": "Fichas del club SEAT 124 y 1430",
+   "url": "http://www.clubseat124.com/fichas/resumen.htm"
+  },
+  {
+   "label": "Frenos SEAT 124 (Piezas Autos Clásicos)",
+   "url": "https://piezasautosclasicos.com/seat/seat124/frenos"
+  },
+  {
+   "label": "Refrigeración SEAT 124 (Mercagarage)",
+   "url": "https://mercagarage.com/148-refrigeracion"
+  },
+  {
+   "label": "Recambios SEAT 124 y 1430 (Recambio Clásico Camacho)",
+   "url": "https://recambioclasicocamacho.com/21-seat-124-1430-y-124-sport"
+  }
+ ],
+ "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite",
+   "oem": "",
+   "alt": "MANN W 920/7, MAHLE OC 83, WIX WL7135, Hengst H10W02, Purflux LS812",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Filtro roscado del motor. Algunas tiendas lo etiquetan como «cambio manual»: se refiere a la versión del coche, no a un filtro de la caja.",
+   "source": "Catálogo MANN-FILTER (SEAT 124 1.2, hasta 10/1980) · Kursport",
+   "url": "https://www.mann-filter.com/en/catalog/search-results/product.html/w920/7_mann-filter.html"
+  },
+  {
+   "id": "aceite",
+   "group": "Lubricación",
+   "name": "Aceite de motor",
+   "oem": "",
+   "alt": "",
+   "perCar": "",
+   "verified": false,
+   "notes": "No encontré la capacidad del 1200. En el 1430, con motor de la misma familia, se cambian unos 3 L. Confírmalo en el manual.",
+   "source": "Piel de Toro (prueba del 1430)",
+   "url": "https://www.pieldetoro.net/web/pruebas/ver.php?ID=947"
+  },
+  {
+   "id": "filtro-aire",
+   "group": "Mantenimiento",
+   "name": "Filtro de aire",
+   "oem": "",
+   "alt": "Universal Weber 32/36: 48 × 172 × 115 mm",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Filtro universal para el carburador Weber 32/36 del SEAT 124 y 131. Compara las medidas con el tuyo.",
+   "source": "Piezas Autos Clásicos",
+   "url": "https://piezasautosclasicos.com/filtro-universal-carburador-weber-32-36-seat-124-131-y-renault-5-ts-8-ts-12-ts"
+  },
+  {
+   "id": "kit-carburador",
+   "group": "Alimentación",
+   "name": "Kit de reparación del carburador Weber 32 DHS",
+   "oem": "",
+   "alt": "Pepepiezas K484, Mercagarage KR-DHS32",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Para el motor 1.2 y 1.4 del SEAT 124. Comprueba que tu carburador es un Weber o Bressel 32 DHS (lo pone en el cuerpo).",
+   "source": "Pepepiezas · Mercagarage · Piezas Autos Clásicos",
+   "url": "https://pepepiezas.com/es/seat-124-1430/2279-kit-reparacion-carburador-seat-124weber-32-dhs.html"
+  },
+  {
+   "id": "bujias",
+   "group": "Encendido",
+   "name": "Bujía",
+   "oem": "",
+   "alt": "",
+   "perCar": "4",
+   "verified": false,
+   "notes": "Rosca M14 × 1,25, distancia entre electrodos 0,8–0,9 mm y par de apriete 28 Nm según Bosch para el SEAT 124. No encontré la referencia exacta del 1200.",
+   "source": "Recambioscoches (bujías Bosch SEAT 124)",
+   "url": "https://www.recambioscoches.es/bujia/seat-124/m-bosch"
+  },
+  {
+   "id": "platinos",
+   "group": "Encendido",
+   "name": "Platinos y condensador",
+   "oem": "",
+   "alt": "FEMSA 12146-1 · Beru ref. 3108",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Equivalencia sacada de un anuncio de particular. Confírmalo con el bastidor o con la pieza montada antes de comprar.",
+   "source": "Anuncio Milanuncios",
+   "url": "https://www.milanuncios.com/recambios-de-coches-clasicos/platinos-seat-124.htm"
+  },
+  {
+   "id": "tapa-delco",
+   "group": "Encendido",
+   "name": "Tapa del delco y rotor",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "No encontré la referencia. Mira la marca del distribuidor (Femsa o Marelli) antes de pedirla."
+  },
+  {
+   "id": "bomba-agua",
+   "group": "Refrigeración",
+   "name": "Bomba de agua",
+   "oem": "",
+   "alt": "FA03200000, 4129810, 5882684",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Ojo con la serie: la bomba de la 1.ª serie del 1200 lleva turbina de 13 mm y la de la 2.ª serie, de 16 mm. Tu coche es un FL (2.ª serie): comprueba cuál lleva antes de pedirla.",
+   "source": "Recambioclasico · Mercagarage",
+   "url": "https://mercagarage.com/recambios/88038-bomba-agua-seat-124-1%C2%AA-serie-motor-1200.html"
+  },
+  {
+   "id": "termostato",
+   "group": "Refrigeración",
+   "name": "Termostato",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "El termostato MOR-005 de 82 °C es para los motores biárbol (1430, Sport, 131), no para el 1200.",
+   "source": "Mercagarage",
+   "url": "https://mercagarage.com/148-refrigeracion"
+  },
+  {
+   "id": "correa",
+   "group": "Refrigeración",
+   "name": "Correa del alternador y la bomba",
+   "oem": "",
+   "alt": "10 × 850 mm (MOR-022)",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Correa universal para muchos SEAT clásicos. Mide la tuya.",
+   "source": "Mercagarage",
+   "url": "https://mercagarage.com/148-refrigeracion"
+  },
+  {
+   "id": "embrague",
+   "group": "Embrague",
+   "name": "Kit de embrague",
+   "oem": "",
+   "alt": "Disco de 180 mm y 20 estrías",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Medida del 124 con motor 1200. El de 215 mm es para los biárbol 1800/2000.",
+   "source": "Recambio Clásico Camacho · Recambios La Curva",
+   "url": "https://recambioclasicocamacho.com/21-seat-124-1430-y-124-sport"
+  },
+  {
+   "id": "discos-del",
+   "group": "Frenos",
+   "name": "Discos de freno delanteros",
+   "oem": "",
+   "alt": "METELLI 23-0014 (227 × 11 mm), OPTIMAL BS-0290C (228 × 10,8 mm)",
+   "perCar": "2",
+   "verified": true,
+   "notes": "Macizos, 4 agujeros, centrado de 62 mm. Espesor mínimo 9 mm. Válidos para el 124 berlina de 1968 a 1980.",
+   "source": "Experto Autorecambios (SEAT 124)",
+   "url": "https://www.expertoautorecambios.es/repuestos/discos-de-freno/seat-124"
+  },
+  {
+   "id": "pastillas-del",
+   "group": "Frenos",
+   "name": "Pastillas de freno delanteras",
+   "oem": "",
+   "alt": "Ref. 202202 (con avisador)",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Anunciadas para SEAT 131, 132, Fura, 124 y Ritmo. Confírmalo con el bastidor o con la pieza montada antes de comprar."
+  },
+  {
+   "id": "kit-pinza-del",
+   "group": "Frenos",
+   "name": "Kit de reparación de pinza delantera (Ø 48 mm)",
+   "oem": "",
+   "alt": "",
+   "perCar": "2",
+   "verified": false,
+   "notes": "La pinza trasera, si la lleva, es de 34 mm.",
+   "source": "Piezas Autos Clásicos",
+   "url": "https://piezasautosclasicos.com/seat/seat124/frenos/discos-y-pastillas"
+  },
+  {
+   "id": "zapatas-tras",
+   "group": "Frenos",
+   "name": "Zapatas de freno traseras (228 × 42 mm)",
+   "oem": "",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "El 124 lleva detrás tambor o disco según la versión: mira el tuyo. Estas zapatas se venden para el 124, 131 y 132.",
+   "source": "Mercagarage",
+   "url": "https://mercagarage.com/recambios/82602-zapatas-de-freno-seat-124-131-y-132-228x42mm-.html"
+  },
+  {
+   "id": "amortiguador-tras",
+   "group": "Suspensión trasera",
+   "name": "Amortiguador trasero",
+   "oem": "",
+   "alt": "Ref. 71040",
+   "perCar": "2",
+   "verified": false,
+   "notes": "Listado para el 124 y el 1430. Confírmalo con el bastidor o con la pieza montada antes de comprar.",
+   "source": "Recambios La Curva",
+   "url": "http://www.recambioslacurva.com/seat-124.html"
+  },
+  {
+   "id": "neumaticos",
+   "group": "Ruedas",
+   "name": "Neumáticos",
+   "oem": "",
+   "alt": "155 SR 13",
+   "perCar": "4",
+   "verified": true,
+   "notes": "Medida de serie de la versión de 1.197 cc.",
+   "source": "Historia SEAT",
+   "url": "https://www.historiaseat.com/k124.htm"
+  }
+ ]
+}

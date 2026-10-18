@@ -38,5 +38,10 @@
   "key": "mitsubishi-j54",
   "title": "Mitsubishi Jeep J54 (4DR5 diésel)",
   "file": "mitsubishi-j54.json"
+ },
+ {
+  "key": "seat-124-fl-1200",
+  "title": "SEAT 124 FL 1200 (2.ª serie · 1975–1980)",
+  "file": "seat-124-fl-1200.json"
  }
 ]
