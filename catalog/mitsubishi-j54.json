@@ -1,8 +1,53 @@
 {
  "title": "Mitsubishi Jeep J54 (4DR5 diésel)",
- "vehicle": "Mitsubishi Jeep J54, versión japonesa del Willys, con motor 4DR5 diésel de 2,7 litros.",
- "links": [],
+ "vehicle": "Mitsubishi Jeep J54 de 1980, la versión japonesa del Willys, con motor 4DR5 diésel de 2,7 litros.",
+ "links": [
+  {
+   "label": "Recambios Mitsubishi Jeep (Yokohama Motors)",
+   "url": "https://yokohamamotors.net/page28.html"
+  },
+  {
+   "label": "Motores del Mitsubishi Jeep (Yokohama Motors)",
+   "url": "http://yokohamamotors.com/Mitsubishi%20Jeep/Mitsubishi_Jeep.htm"
+  }
+ ],
  "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite (cartucho corto)",
+   "oem": "31340-12030",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Cartucho para el J54 según Yokohama Motors. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Yokohama Motors",
+   "url": "https://yokohamamotors.net/page28.html"
+  },
+  {
+   "id": "aceite",
+   "group": "Lubricación",
+   "name": "Aceite de motor",
+   "oem": "",
+   "alt": "",
+   "perCar": "≈ 7 L con filtro",
+   "verified": false,
+   "notes": "Dato de una web de fichas técnicas; confírmalo en el manual.",
+   "source": "EngineTechSpecs (4DR5)",
+   "url": "https://enginetechspecs.com/mitsubishi_4dr5_technical_data.html"
+  },
+  {
+   "id": "filtro-gasoil",
+   "group": "Alimentación",
+   "name": "Filtro de gasoil (cartucho antiguo)",
+   "oem": "3166201031",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Modelo «Early Type» para el 4DR5. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Yokohama Motors",
+   "url": "https://yokohamamotors.net/product834.html"
+  },
   {
    "id": "filtro-aire",
    "group": "Mantenimiento",
@@ -11,35 +56,93 @@
    "alt": "",
    "perCar": "1",
    "verified": false,
-   "notes": "Aparece para motores 4DR5C y otros diésel Mitsubishi. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "FridayParts (referencia cruzada)"
-  },
-  {
-   "id": "filtro-aceite",
-   "group": "Lubricación",
-   "name": "Filtro de aceite",
-   "oem": "",
-   "alt": "",
-   "perCar": "1",
-   "verified": false
-  },
-  {
-   "id": "filtro-gasoil",
-   "group": "Alimentación",
-   "name": "Filtro de gasoil",
-   "oem": "",
-   "alt": "",
-   "perCar": "1",
-   "verified": false
+   "notes": "Aparece para motores 4DR5C y otros diésel Mitsubishi. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "FridayParts (referencia cruzada)",
+   "url": "https://www.fridayparts.com/air-filter-md603446-for-mitsubishi-engine-s4s-4dr5c-s4f-4d55-6dr5-s4e2-ke47-4dq50c-4dr50c-4d30c"
   },
   {
    "id": "calentadores",
    "group": "Encendido",
    "name": "Bujía de precalentamiento",
-   "oem": "",
+   "oem": "ME007547",
    "alt": "",
    "perCar": "4",
-   "verified": false
+   "verified": false,
+   "notes": "No vale para el 4DR6 posterior. Hay versiones de 12 V y de 24 V: comprueba la tensión de la instalación.",
+   "source": "Yokohama Motors",
+   "url": "https://yokohamamotors.net/mitsubishi-jeep-glow-plug-4dr5-details.html"
+  },
+  {
+   "id": "termostato",
+   "group": "Refrigeración",
+   "name": "Termostato",
+   "oem": "31646-02702",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Para motores 4DR5. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Yokohama Motors",
+   "url": "https://yokohamamotors.net/page28.html"
+  },
+  {
+   "id": "bombin-tras",
+   "group": "Frenos",
+   "name": "Bombín de freno trasero",
+   "oem": "MB044798",
+   "alt": "",
+   "perCar": "2",
+   "verified": false,
+   "notes": "Un anuncio lo da para izquierda y derecha; otro da MB044705 / MB044707. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncio PicClick (J54 diésel)",
+   "url": "https://picclick.co.uk/MITSUBISHI-JEEP-J54-REAR-BRAKE-WHEEL-CYLINDER-MB044798-202721810322.html"
+  },
+  {
+   "id": "kit-bomba-freno",
+   "group": "Frenos",
+   "name": "Kit de reparación de la bomba de freno",
+   "oem": "MB004993",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncio eBay (J54)",
+   "url": "https://www.ebay.co.uk/p/1416184749"
+  },
+  {
+   "id": "zapatas",
+   "group": "Frenos",
+   "name": "Zapatas de freno",
+   "oem": "",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Según propietarios, se parecen a las del Jeep CJ5 de 9\" (con adaptación). Los bombines van en medidas de pulgada.",
+   "source": "Foro JeepForum",
+   "url": "https://www.jeepforum.com/forum/f8/mitsubishi-j54-450840/"
+  },
+  {
+   "id": "zapatas-mano",
+   "group": "Frenos",
+   "name": "Zapatas del freno de mano",
+   "oem": "MB806091",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Válidas para toda la serie J50.",
+   "source": "Yokohama Motors",
+   "url": "https://yokohamamotors.net/mitsubishi-parking-brake-shoe-set-all--details.html"
+  },
+  {
+   "id": "bomba-embrague",
+   "group": "Embrague",
+   "name": "Bomba de embrague (3/4\")",
+   "oem": "MB012424",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Para J54, J56 y J58. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Yokohama Motors",
+   "url": "https://yokohamamotors.net/product529.html"
   }
  ]
 }

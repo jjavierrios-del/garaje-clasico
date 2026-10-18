@@ -1,13 +1,45 @@
 {
  "title": "Renault 11 GTL 1.4 (B37 · FASA-Renault)",
- "vehicle": "Renault 11 GTL de 5 puertas (B37), fabricado por FASA-Renault en España, motor 1.4 de la familia C.",
+ "vehicle": "Renault 11 GTL de 5 puertas (B37) de 1985, fabricado por FASA-Renault en España. Motor C1J de 1.397 cc con carburador (60–68 CV según año). Frenos de disco delante y de tambor detrás.",
  "links": [
+  {
+   "label": "Recambios Renault 11 (recambioscoches.es)",
+   "url": "https://www.recambioscoches.es/renault-11"
+  },
+  {
+   "label": "Ficha técnica Renault 11 GTL (Autotitre)",
+   "url": "https://www.autotitre.com/fiche-technique/Renault/11/GTL"
+  },
   {
    "label": "Buscar despiece Renault 11",
    "url": "https://www.google.com/search?q=despiece+renault+11+GTL+B372"
   }
  ],
  "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite",
+   "oem": "8200 768 913",
+   "alt": "Purflux LS932",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Rosca M20 × 1,5. Una tienda da 54 mm de alto y otra 50 mm: compara con el filtro montado.",
+   "source": "Recambioscoches · Toppiezascoches · Lubricantes-Online",
+   "url": "https://lubricantes-online.com/8200768913"
+  },
+  {
+   "id": "aceite",
+   "group": "Lubricación",
+   "name": "Aceite de motor",
+   "oem": "",
+   "alt": "15W-40",
+   "perCar": "3,25 L con filtro",
+   "verified": false,
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Ultimatespecs",
+   "url": "https://www.ultimatespecs.com/car-specs/Renault/117/Renault-11-TL---GTL.html"
+  },
   {
    "id": "filtro-aire",
    "group": "Mantenimiento",
@@ -17,35 +49,93 @@
    "perCar": "1",
    "verified": false,
    "notes": "Esta referencia aparece para el 11 Turbo (C1J). En el GTL puede ser distinta: compárala con el filtro que lleva.",
-   "source": "Mecatechnic (Renault 11 Turbo)"
-  },
-  {
-   "id": "filtro-aceite",
-   "group": "Lubricación",
-   "name": "Filtro de aceite",
-   "oem": "",
-   "alt": "",
-   "perCar": "1",
-   "verified": false,
-   "notes": "Mira el código de motor en la placa (C1J 715, C1J 760…) para elegir el filtro."
+   "source": "Mecatechnic (Renault 11 Turbo)",
+   "url": "https://www.mecatechnic.com/en-GB/p/air-filter-for-renault-11-turbo-1984-1988_RN43320"
   },
   {
    "id": "bujias",
    "group": "Encendido",
    "name": "Bujía",
    "oem": "",
-   "alt": "",
+   "alt": "Champion N9YC, NGK BPR6ES",
    "perCar": "4",
-   "verified": false
+   "verified": false,
+   "notes": "Según socios del club Renault 11; no es un dato de catálogo.",
+   "source": "Foro Club Renault 11 y 9",
+   "url": "https://foroclub.es/renault11-9/viewtopic.php?t=3129"
   },
   {
-   "id": "platinos",
+   "id": "tapa-delco",
    "group": "Encendido",
-   "name": "Tapa de delco, rotor y cables",
+   "name": "Tapa del delco (Ducellier)",
+   "oem": "7701 047 619",
+   "alt": "También 77 01 407 311",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Para el distribuidor Ducellier, el más habitual en el C1J. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Piezas Autos Clásicos (R9/R11 1397 cc) · Recambioscoche",
+   "url": "https://piezasautosclasicos.com/tapa-delco-para-distribuidor-ducellier-renault-citroen-peugeot-equivalente-7701047619"
+  },
+  {
+   "id": "rotor",
+   "group": "Encendido",
+   "name": "Rotor del delco (Ducellier)",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Suele venderse en kit con la tapa."
+  },
+  {
+   "id": "cables",
+   "group": "Encendido",
+   "name": "Juego de cables de bujías",
    "oem": "",
    "alt": "",
    "perCar": "1 juego",
    "verified": false
+  },
+  {
+   "id": "bomba-agua",
+   "group": "Refrigeración",
+   "name": "Bomba de agua",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "La bomba completa del motor Cléon C1J vale también para los 1.1, 1.3 y 1.4 sin turbo, según la tienda.",
+   "source": "Youngtimers Classics",
+   "url": "https://www.youngtimersclassics.com/product-page/complete-water-pump-renault-c1j-turbo"
+  },
+  {
+   "id": "pastillas-del",
+   "group": "Frenos",
+   "name": "Pastillas de freno delanteras",
+   "oem": "",
+   "alt": "23.338.01 (R9/R11 desde 1984)",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Valeo 301081 y 301002 aparecen en el catálogo del R11 sin indicar versión. Confírmalo con el bastidor en el despiece oficial antes de comprar."
+  },
+  {
+   "id": "zapatas-tras",
+   "group": "Frenos",
+   "name": "Zapatas de freno traseras",
+   "oem": "",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Frenos traseros de tambor."
+  },
+  {
+   "id": "kit-embrague",
+   "group": "Embrague",
+   "name": "Kit de embrague",
+   "oem": "",
+   "alt": "LuK 618 0740 00",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Aparece en el catálogo del R11 sin indicar versión. Confírmalo con el bastidor en el despiece oficial antes de comprar."
   }
  ]
 }

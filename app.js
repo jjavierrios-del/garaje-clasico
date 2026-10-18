@@ -1,6 +1,6 @@
 (() => {
   const CATEGORIES = ["Aceites y fluidos","Filtros","Encendido","Motor","Juntas y retenes","Refrigeración","Alimentación","Frenos","Embrague y transmisión","Suspensión y dirección","Eléctrico","Carrocería","Interior","Neumáticos y llantas","Herramientas","Otros"];
-  const GROUPS = ["Motor","Distribución","Lubricación","Alimentación","Encendido","Refrigeración","Escape","Embrague","Caja de cambios","Transmisión","Frenos","Suspensión delantera","Suspensión trasera","Dirección","Eléctrico","Carrocería","Interior","Mantenimiento"];
+  const GROUPS = ["Mantenimiento","Lubricación","Motor","Distribución","Alimentación","Encendido","Refrigeración","Escape","Embrague","Caja de cambios","Transmisión","Frenos","Suspensión delantera","Suspensión trasera","Dirección","Ruedas","Eléctrico","Carrocería","Interior"];
   const UNITS = ["ud","L","kg","juego","m"];
 
   const S = { cars: [], parts: [], catalog: [], tab: "garage", carId: null, carTab: "parts", kind: "all", stockFilter: "all", stockCar: "all", catCar: null, q: "", ready: false, canWrite: true, canUpload: true };
@@ -322,6 +322,7 @@
         ${field("k_src", "Fuente", item.source, { full: true, ph: "Catálogo EPC, manual de taller…" })}
       </form>
       ${item.verified === false ? `<p class="banner">Referencia pendiente de verificar con catálogo oficial o vendedor.</p>` : ""}
+      ${item.url ? `<a class="shop" href="${esc(item.url)}" target="_blank" rel="noopener"><strong>Ver dónde se encontró</strong><span>${esc((() => { try { return new URL(item.url).hostname.replace("www.", ""); } catch { return item.url; } })())}</span></a>` : ""}
       <div class="actions">
         <button class="btn primary" type="button" id="saveCat">Guardar</button>
         ${isNew ? `<button class="btn" type="button" data-close>Cancelar</button>` : `<button class="btn danger" type="button" id="delCat">Borrar</button>`}
@@ -713,7 +714,7 @@
     else if (el.id === "webFree") openWeb({ name: S.q.trim() });
   });
   function groupToCat(g) {
-    return ({ "Lubricación": "Aceites y fluidos", "Mantenimiento": "Filtros", "Encendido": "Encendido", "Refrigeración": "Refrigeración", "Alimentación": "Alimentación", "Frenos": "Frenos", "Embrague": "Embrague y transmisión", "Caja de cambios": "Embrague y transmisión", "Transmisión": "Embrague y transmisión", "Suspensión delantera": "Suspensión y dirección", "Suspensión trasera": "Suspensión y dirección", "Dirección": "Suspensión y dirección", "Eléctrico": "Eléctrico", "Carrocería": "Carrocería", "Interior": "Interior", "Motor": "Motor", "Distribución": "Motor", "Escape": "Motor" })[g] || "Otros";
+    return ({ "Lubricación": "Aceites y fluidos", "Mantenimiento": "Filtros", "Encendido": "Encendido", "Refrigeración": "Refrigeración", "Alimentación": "Alimentación", "Frenos": "Frenos", "Embrague": "Embrague y transmisión", "Caja de cambios": "Embrague y transmisión", "Transmisión": "Embrague y transmisión", "Suspensión delantera": "Suspensión y dirección", "Suspensión trasera": "Suspensión y dirección", "Dirección": "Suspensión y dirección", "Eléctrico": "Eléctrico", "Carrocería": "Carrocería", "Interior": "Interior", "Ruedas": "Neumáticos y llantas", "Motor": "Motor", "Distribución": "Motor", "Escape": "Motor" })[g] || "Otros";
   }
 
   // ---------- Arranque ----------

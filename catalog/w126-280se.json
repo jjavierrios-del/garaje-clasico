@@ -1,44 +1,79 @@
 {
  "title": "Mercedes-Benz 280 SE (W126 · 126.022 · M 110)",
- "vehicle": "Mercedes-Benz Clase S W126 280 SE berlina, chasis 126.022, motor M 110 de 6 cilindros 2.8 inyección (1979–1985).",
+ "vehicle": "Mercedes-Benz Clase S W126 280 SE berlina de 1984, chasis 126.022, motor M 110 de 6 cilindros 2.8 con inyección, 185 CV.",
  "links": [
   {
    "label": "Catálogo clásico Niemöller (W126)",
    "url": "https://www.niemoeller.de/en/W126/"
+  },
+  {
+   "label": "Frenos 280 SE 126.022 (Brembo)",
+   "url": "https://www.bremboparts.com/europe/en/catalogue/mercedes-benz-s-class-w126-280-se-sel-126-022-126-023/000000683-1"
+  },
+  {
+   "label": "Cadena de distribución W126 (Pelican Parts)",
+   "url": "https://www.pelicanparts.com/cat/r_w126/engcam_timing-chains-and-parts"
   }
  ],
  "items": [
   {
    "id": "filtro-aceite",
-   "group": "Lubricación",
-   "name": "Filtro de aceite (cartucho)",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite (cartucho con juntas)",
    "oem": "A 000 180 06 09",
-   "alt": "",
+   "alt": "MANN H 929 x",
    "perCar": "1",
-   "verified": false,
-   "notes": "Un anuncio lo da para M 110, M 116 y M 117. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay"
+   "verified": true,
+   "notes": "Sirve para los motores M 110, M 116 y M 117.",
+   "source": "McStar Parts · AutohausAZ",
+   "url": "https://www.autohausaz.com/pn/0001800609"
   },
   {
    "id": "carcasa-filtro",
    "group": "Lubricación",
    "name": "Carcasa del filtro de aceite",
-   "oem": "110 180 02 11",
+   "oem": "A 110 180 02 11",
    "alt": "",
    "perCar": "1",
    "verified": false,
-   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay (W126 M110)"
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncio eBay (W126 M 110)"
   },
   {
    "id": "filtro-aire",
    "group": "Mantenimiento",
    "name": "Filtro de aire",
-   "oem": "",
-   "alt": "",
+   "oem": "A 002 094 62 04",
+   "alt": "MANN C 37 145",
    "perCar": "1",
    "verified": false,
-   "notes": "Mira la referencia en Niemöller o Partsouq."
+   "notes": "Listado para el 280 SE W116 y el 280 E W123, con el mismo motor M 110. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "FCP Euro",
+   "url": "https://www.fcpeuro.com/products/mercedes-benz-air-filter-280ce-280se-280e-w123-w116-042-1131"
+  },
+  {
+   "id": "filtro-gasolina",
+   "group": "Alimentación",
+   "name": "Filtro de gasolina",
+   "oem": "",
+   "alt": "Bosch 71001",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Para los 280 SE con inyección Bosch. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "AutohausAZ (280 SE)",
+   "url": "https://www.autohausaz.com/mercedes-auto-parts/mercedes-280se-filter-replacement.html"
+  },
+  {
+   "id": "tapa-delco",
+   "group": "Encendido",
+   "name": "Tapa del delco",
+   "oem": "A 000 158 44 02",
+   "alt": "Bosch 1 235 522 329",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Hay varias tapas según el número de motor (M 110.981/983 usan otra). Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "MercedesPartz (W126)",
+   "url": "https://www.mercedespartz.com/store/0001584402/"
   },
   {
    "id": "bujias",
@@ -47,16 +82,78 @@
    "oem": "",
    "alt": "",
    "perCar": "6",
-   "verified": false
+   "verified": false,
+   "notes": "Busca la referencia Bosch para el M 110 de inyección en el despiece oficial."
   },
   {
-   "id": "filtro-gasolina",
-   "group": "Alimentación",
-   "name": "Filtro de gasolina",
-   "oem": "",
+   "id": "tensor-cadena",
+   "group": "Distribución",
+   "name": "Tensor de la cadena",
+   "oem": "A 110 050 06 11",
    "alt": "",
    "perCar": "1",
-   "verified": false
+   "verified": true,
+   "notes": "Válido para M 110.921 a M 110.994.",
+   "source": "McStar Parts · anuncio eBay",
+   "url": "https://www.mcstarparts.com/product-page/mercedes-m110-timing-chain-tensioner-pt-no-110-050-06-11-1100500611"
+  },
+  {
+   "id": "cadena",
+   "group": "Distribución",
+   "name": "Cadena de distribución (doble)",
+   "oem": "A 000 997 69 94",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncio eBay (M 110)",
+   "url": "https://www.ebay.com/itm/183443044576"
+  },
+  {
+   "id": "guia-cadena",
+   "group": "Distribución",
+   "name": "Guía de la cadena",
+   "oem": "A 110 050 15 16",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncio eBay (M 110)"
+  },
+  {
+   "id": "muelle-tensor",
+   "group": "Distribución",
+   "name": "Muelle del tensor",
+   "oem": "A 110 993 39 01",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Compartido con el diésel OM 617. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncio eBay"
+  },
+  {
+   "id": "pastillas-del",
+   "group": "Frenos",
+   "name": "Pastillas de freno delanteras",
+   "oem": "A 001 420 80 20",
+   "alt": "Mecatechnic MB04342",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Pinzas ATE de 2 pistones de 60 mm según Brembo. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Mecatechnic (280 SE 126.022) · anuncio eBay",
+   "url": "https://www.mecatechnic.com/en-GB/front-brake-pads-for-mercedes-w126_MB04342.htm"
+  },
+  {
+   "id": "discos-del",
+   "group": "Frenos",
+   "name": "Discos de freno delanteros",
+   "oem": "",
+   "alt": "ATE 278 × 22 mm ventilados",
+   "perCar": "2",
+   "verified": false,
+   "notes": "Medida del kit de Pelican Parts para el W126. Busca la referencia en Niemöller.",
+   "source": "Pelican Parts (W126)",
+   "url": "https://www.pelicanparts.com/catalog/SuperCat/W126/MBZ_W126_BRKPAD_pg1.htm"
   }
  ]
 }

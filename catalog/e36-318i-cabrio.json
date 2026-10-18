@@ -1,18 +1,28 @@
 {
  "title": "BMW 318i Cabrio (E36 · BH31 · M43)",
- "vehicle": "BMW Serie 3 E36 318i Cabrio, código de tipo BH31, motor M43 1.8, cambio manual (1994–1999).",
- "links": [],
+ "vehicle": "BMW Serie 3 E36 318i Cabrio de 1996, código de tipo BH31, motor M43 1.8 de 115 CV y cambio manual.",
+ "links": [
+  {
+   "label": "Catálogo por versión (Autodoc 318i Cabrio M43)",
+   "url": "https://www.autodoc.co.uk/spares/bmw/3er-reihe/3-convertible-e36/3728-318-i"
+  },
+  {
+   "label": "RealOEM · bomba de agua y termostato",
+   "url": "https://www.realoem.com/bmw/enUS/showparts?id=CP32-EUR---E36-BMW-318i&diagId=11_6057"
+  }
+ ],
  "items": [
   {
    "id": "filtro-aceite",
-   "group": "Lubricación",
+   "group": "Mantenimiento",
    "name": "Filtro de aceite",
    "oem": "11 42 1 727 300",
-   "alt": "",
+   "alt": "Según la carcasa: 11 42 7 512 300 (MANN HU 925/4 x)",
    "perCar": "1",
    "verified": false,
-   "notes": "Para carcasa con tapa de aluminio. Las fuentes dudan entre M42 y M43. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Turner Motorsport (Mahle) · anuncio eBay (E36 318i Cabrio M43)"
+   "notes": "Las fuentes no coinciden para el M43 de 1996. Compara con el filtro montado o búscalo en RealOEM con el bastidor.",
+   "source": "Turner Motorsport · anuncios",
+   "url": "https://www.turnermotorsport.com/p-3584-oem-mahlemann-e36-318i-92-95-e30-318i-89-91/"
   },
   {
    "id": "filtro-aire",
@@ -22,19 +32,126 @@
    "alt": "",
    "perCar": "1",
    "verified": false,
-   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio (E36 316i/318i M43)"
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "AutohausAZ · anuncio",
+   "url": "https://www.autohausaz.com/bmw-auto-parts/bmw-e36_3~series-filter-replacement.html"
+  },
+  {
+   "id": "filtro-gasolina",
+   "group": "Alimentación",
+   "name": "Filtro de gasolina",
+   "oem": "13 32 1 270 038",
+   "alt": "MAHLE",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "AutohausAZ",
+   "url": "https://www.autohausaz.com/bmw-auto-parts/bmw-e36_3~series-filter-replacement.html"
+  },
+  {
+   "id": "filtro-habitaculo",
+   "group": "Mantenimiento",
+   "name": "Filtro de habitáculo",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Va debajo de la guantera. Busca la referencia en RealOEM.",
+   "source": "Turner Motorsport",
+   "url": "https://www.turnermotorsport.com/BMW-E36-Parts/c-964-bmw-cabin-filters"
   },
   {
    "id": "bujias",
    "group": "Encendido",
    "name": "Bujía",
-   "oem": "12 12 0 037 607",
-   "alt": "",
+   "oem": "12 12 9 064 619",
+   "alt": "NGK BKR6EK",
    "perCar": "4",
    "verified": false,
-   "notes": "Sale en el kit de Inspección II de BMW. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Leebmann24 (kit Inspección II)"
+   "notes": "La NGK BKR6EK sustituye a esa referencia BMW en los 4 cilindros del E36; confirma que vale para el M43.",
+   "source": "Turner Motorsport",
+   "url": "https://www.turnermotorsport.com/p-338578-ngk-spark-plug-bkr6ek-e30-e34-e36-e32-e38-e39-e31-z3/"
+  },
+  {
+   "id": "cadena",
+   "group": "Distribución",
+   "name": "Kit de cadena de distribución",
+   "oem": "11 31 1 734 392",
+   "alt": "",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Kit original BMW para el M43 (E36, E46, E34).",
+   "source": "ML Performance (BMW original)",
+   "url": "https://www.mlperformance.co.uk/products/genuine-bmw-m43-e34-e36-e46-timing-chain-kit-inc-316i-318i-518i-z3-1-9"
+  },
+  {
+   "id": "bomba-agua",
+   "group": "Refrigeración",
+   "name": "Bomba de agua",
+   "oem": "11 51 0 393 338",
+   "alt": "Junta tórica 11 51 1 714 519",
+   "perCar": "1",
+   "verified": true,
+   "source": "RealOEM (E36 318i)",
+   "url": "https://www.realoem.com/bmw/enUS/showparts?id=CP32-EUR---E36-BMW-318i&diagId=11_6057"
+  },
+  {
+   "id": "termostato",
+   "group": "Refrigeración",
+   "name": "Termostato",
+   "oem": "11 53 1 739 755",
+   "alt": "11 53 1 432 881, 11 53 1 247 125",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Global Parts (M43 E36)",
+   "url": "https://globalparts.co.uk/thermostats-housings/1739755/bmw-e36-316i-318i-petrol-m43-thermostat-water-coolant-heat-management-1739755"
+  },
+  {
+   "id": "pastillas-del",
+   "group": "Frenos",
+   "name": "Pastillas de freno delanteras",
+   "oem": "34 11 6 761 244",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": true,
+   "notes": "Referencia actual que sustituye a las anteriores (318i Cabrio 1994–1998).",
+   "source": "BMW Parts Deal (catálogo BMW)",
+   "url": "https://www.bmwpartsdeal.com/oem-bmw-318i-brake_pads.html"
+  },
+  {
+   "id": "pastillas-tras",
+   "group": "Frenos",
+   "name": "Pastillas de freno traseras",
+   "oem": "34 21 6 778 168",
+   "alt": "",
+   "perCar": "1 juego",
+   "verified": true,
+   "source": "BMW Parts Deal (catálogo BMW)",
+   "url": "https://www.bmwpartsdeal.com/oem-bmw-318i-brake_pads.html"
+  },
+  {
+   "id": "discos-del",
+   "group": "Frenos",
+   "name": "Discos de freno delanteros",
+   "oem": "34 11 1 159 896",
+   "alt": "",
+   "perCar": "2",
+   "verified": false,
+   "notes": "Ventilados; en el 318i suelen ser de 286 × 22 mm. Mide los tuyos.",
+   "source": "Anuncio ATE"
+  },
+  {
+   "id": "discos-tras",
+   "group": "Frenos",
+   "name": "Discos de freno traseros",
+   "oem": "34 21 6 794 305",
+   "alt": "",
+   "perCar": "2",
+   "verified": false,
+   "notes": "Macizos de 280 × 10 mm. No se pueden cambiar por los ventilados (34 21 6 864 903, 276 × 19 mm).",
+   "source": "IE Motorsport",
+   "url": "https://www.iemotorsport.com/product/rear-brake-rotors-e36/"
   },
   {
    "id": "capota",

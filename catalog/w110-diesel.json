@@ -1,13 +1,138 @@
 {
  "title": "Mercedes-Benz 200 D (W110 · 110.110 · OM 621)",
- "vehicle": "Mercedes-Benz W110 «Colas» 200 D de 1968, chasis 110.110 y motor diésel OM 621. Comparte chasis con el 190 Dc (1961–1965).",
+ "vehicle": "Mercedes-Benz W110 «Colas» 200 D de 1968, chasis 110.110, motor diésel OM 621.918 de 1.988 cc y 55 CV.",
  "links": [
   {
    "label": "Catálogo clásico Niemöller (W110)",
    "url": "https://www.niemoeller.de/en/w110/"
+  },
+  {
+   "label": "Catálogo por versión (Autodoc 200 D OM 621.918)",
+   "url": "https://www.autodoc.parts/spares/mercedes-benz/heckflosse/heckflosse-w110/374-200-d-110-110"
+  },
+  {
+   "label": "Refrigeración W110 (Pelican Parts)",
+   "url": "https://www.pelicanparts.com/catalog/SuperCat/W110/MBZ_W110_WATPMP_pg1.htm"
   }
  ],
  "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite",
+   "oem": "A 000 180 02 09",
+   "alt": "MANN PF 925 x, HENGST E110M D02",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Cámbialo cada 15.000 km o cada año.",
+   "source": "Autodoc (200 D OM 621.918) · MBZ Parts",
+   "url": "https://www.autodoc.parts/car-parts/oil-filter-10359/mercedes-benz/heckflosse/heckflosse-w110/374-200-d-110-110"
+  },
+  {
+   "id": "filtro-gasoil",
+   "group": "Alimentación",
+   "name": "Filtro de gasoil",
+   "oem": "",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Pelican Parts vende el kit (cartucho y junta) para el 200 D de 1966–68.",
+   "source": "Pelican Parts",
+   "url": "https://www.pelicanparts.com/cat/r_w110/fulful_fuel-filters"
+  },
+  {
+   "id": "calentadores",
+   "group": "Encendido",
+   "name": "Bujía de precalentamiento",
+   "oem": "A 000 159 61 01",
+   "alt": "Bosch 0 250 001 016",
+   "perCar": "4",
+   "verified": true,
+   "notes": "Sistema antiguo de 0,9 V con las bujías en serie: si falla una no calienta ninguna. Cambia el juego completo.",
+   "source": "Sports & Classics · EverythingBenz · AB Marine",
+   "url": "https://www.sportsandclassics.com/parts/non-british/mercedes-non-british/mercedes-w110-w121-w123-diesel-glow-plug-0001596101/"
+  },
+  {
+   "id": "bomba-agua",
+   "group": "Refrigeración",
+   "name": "Bomba de agua",
+   "oem": "A 110 200 17 20",
+   "alt": "A 115 200 16 20, Geba, Febi",
+   "perCar": "1",
+   "verified": true,
+   "source": "Autodoc (200 D OM 621.918) · FCP Euro",
+   "url": "https://www.auto-doc.ie/car-parts/water-pump-10191/mercedes-benz/heckflosse/heckflosse-w110/374-200-d-110-110"
+  },
+  {
+   "id": "junta-bomba",
+   "group": "Refrigeración",
+   "name": "Junta de la carcasa de la bomba de agua",
+   "oem": "A 616 201 00 80",
+   "alt": "Reinz / Elring",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "MBZ Parts",
+   "url": "https://mbzparts.com/mercedes-water-pump-housing-gasket-new-om615-om616-om617-om621-diesel-m108-m110-m114-m115-m121-m123-m127-m129-m130-m180-gas/"
+  },
+  {
+   "id": "termostato",
+   "group": "Refrigeración",
+   "name": "Termostato",
+   "oem": "A 110 200 05 15",
+   "alt": "Mahle (A 110 200 06 15)",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Las tiendas dan dos referencias distintas. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "MBZ Parts · FCP Euro",
+   "url": "https://mbzparts.com/mercedes-thermostat-new-oe-om615-om621-diesel-m100-m102-m103-m104-m108-m110-m114-m115-m121-m123-m127-m129-m130-m180-gas/"
+  },
+  {
+   "id": "manguito",
+   "group": "Refrigeración",
+   "name": "Manguito bomba de agua – termostato",
+   "oem": "A 621 203 00 82",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Listado para el W110 de 1961 a 1968 con OM 621. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "McStar Parts",
+   "url": "https://www.mcstarparts.com/product-page/mercedes-om615-om621-hose-water-pump-to-thermostat-621-203-00-82-6212030082"
+  },
+  {
+   "id": "pastillas-del",
+   "group": "Frenos",
+   "name": "Pastillas de freno delanteras",
+   "oem": "",
+   "alt": "ATE 13.0460-6027.2, ATE D112A, Zimmermann 200111501",
+   "perCar": "1 juego",
+   "verified": true,
+   "source": "Autodoc (200 D) · AutohausAZ (200D 1966–68)",
+   "url": "https://www.autohausaz.com/mercedes-auto-parts/mercedes-200d-brake_pads-replacement.html"
+  },
+  {
+   "id": "discos-del",
+   "group": "Frenos",
+   "name": "Discos de freno delanteros",
+   "oem": "",
+   "alt": "Ferodo DDF003 (279 × 10 mm macizos, 5 × 112)",
+   "perCar": "2",
+   "verified": true,
+   "source": "Autodoc (200 D OM 621.918)",
+   "url": "https://www.autodoc.co.uk/car-parts/wheel-cylinders-10128/mercedes-benz/heckflosse/heckflosse-w110/374-200-d-110-110"
+  },
+  {
+   "id": "bombines-tras",
+   "group": "Frenos",
+   "name": "Bombín de freno trasero",
+   "oem": "",
+   "alt": "ATE 03.3219-3401.3 (Ø 19 mm)",
+   "perCar": "2",
+   "verified": true,
+   "notes": "Frenos traseros de tambor.",
+   "source": "Autodoc (200 D OM 621.918)",
+   "url": "https://www.autodoc.co.uk/car-parts/wheel-cylinders-10128/mercedes-benz/heckflosse/heckflosse-w110/374-200-d-110-110"
+  },
   {
    "id": "arandela-eje",
    "group": "Suspensión trasera",
@@ -16,8 +141,9 @@
    "alt": "Niemöller C 35 134",
    "perCar": "2",
    "verified": false,
-   "source": "Niemöller · 190 Dc W110.110, motor 621.912",
-   "notes": "Confirmada por Niemöller para el 190 Dc (mismo chasis 110.110). Comprueba que vale para el 200 D."
+   "notes": "Confirmada por Niemöller para el 190 Dc (mismo chasis 110.110). Comprueba que vale para el 200 D.",
+   "source": "Niemöller",
+   "url": "https://www.niemoeller.de/en/w110/w110/B110/14/c35134-lock-washer"
   },
   {
    "id": "kit-brazos",
@@ -27,8 +153,9 @@
    "alt": "Niemöller C 33 108a",
    "perCar": "1",
    "verified": false,
-   "source": "Niemöller · 190 Dc W110.110, motor 621.912",
-   "notes": "Confirmada por Niemöller para el 190 Dc (mismo chasis 110.110). Comprueba que vale para el 200 D."
+   "notes": "Confirmado por Niemöller para el 190 Dc (mismo chasis 110.110). Comprueba que vale para el 200 D.",
+   "source": "Niemöller",
+   "url": "https://www.niemoeller.de/en/w110/w110/B110/13/c33108a-repair-kit-upper-lower-control-arm"
   },
   {
    "id": "carter",
@@ -39,35 +166,8 @@
    "perCar": "1",
    "verified": false,
    "notes": "Listado para W110 y W115; confirma que corresponde al OM 621.",
-   "source": "Classic Parts Finder"
-  },
-  {
-   "id": "filtro-aceite",
-   "group": "Lubricación",
-   "name": "Filtro de aceite",
-   "oem": "",
-   "alt": "",
-   "perCar": "1",
-   "verified": false,
-   "notes": "Mira la referencia en Niemöller con el chasis 110.110."
-  },
-  {
-   "id": "filtro-gasoil",
-   "group": "Alimentación",
-   "name": "Filtro de gasoil",
-   "oem": "",
-   "alt": "",
-   "perCar": "1",
-   "verified": false
-  },
-  {
-   "id": "calentadores",
-   "group": "Encendido",
-   "name": "Bujía de precalentamiento",
-   "oem": "",
-   "alt": "",
-   "perCar": "4",
-   "verified": false
+   "source": "Classic Parts Finder",
+   "url": "https://classic-parts-finder.com/en/car-parts/mercedes-benz/w110/engine/oil-pan-mercedes-w110-w115_3777"
   }
  ]
 }

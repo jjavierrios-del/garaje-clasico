@@ -1,10 +1,18 @@
 {
  "title": "Honda CBF600SA ABS (PC43 · 2008–2013)",
- "vehicle": "Honda CBF600SA con ABS, chasis PC43, fabricada en Atessa (Italia), año modelo 2010 según el bastidor.",
+ "vehicle": "Honda CBF600SA con ABS, chasis PC43, fabricada en Atessa (Italia), año modelo 2010. Motor de 4 cilindros, 599 cc.",
  "links": [
   {
-   "label": "Microfichas Honda (CMSNL)",
-   "url": "https://www.google.com/search?q=site%3Acmsnl.com+CBF600SA+2010"
+   "label": "Despiece oficial Honda CBF600SA 2010 (oem-bike-parts)",
+   "url": "https://oem-bike-parts.com/en/parts/honda/350cc-699cc/cbf-600-s/cbf600sa-cbf600s-2010"
+  },
+  {
+   "label": "Recambios PC43 (Louis)",
+   "url": "https://www.louis-moto.com/en/bike-database/honda-cbf-600-abs/pc43/1970"
+  },
+  {
+   "label": "Manual de taller CBF600SA (ManualsLib)",
+   "url": "https://www.manualslib.com/manual/1068381/Honda-Cbf600sa.html"
   }
  ],
  "items": [
@@ -12,12 +20,24 @@
    "id": "filtro-aceite",
    "group": "Mantenimiento",
    "name": "Filtro de aceite",
-   "oem": "15410-MFJ-D01",
-   "alt": "Hiflofiltro HF204, K&N KN-204",
+   "oem": "15410-MFJ-D02",
+   "alt": "Antes 15410-MFJ-D01 · Hiflofiltro HF204 · K&N KN-204",
    "perCar": "1",
-   "verified": false,
-   "notes": "El HF204 aparece para la CBF600 2008–2013 en anuncios; la referencia Honda se comparte con la CBR600. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay Hiflo · catálogo K&N"
+   "verified": true,
+   "notes": "Honda sustituyó la MFJ-D01 por la MFJ-D02; son el mismo filtro.",
+   "source": "Honda Parts · kits de mantenimiento PC43",
+   "url": "https://www.honda-parts.eu/eu/motorcycle/parts/oil-filter/oil-filter-15410-mfj-d02"
+  },
+  {
+   "id": "aceite",
+   "group": "Lubricación",
+   "name": "Aceite de motor",
+   "oem": "",
+   "alt": "SAE 10W-30 · API SG o superior",
+   "perCar": "2,7 L (2,8 L con filtro)",
+   "verified": true,
+   "source": "Manual de taller Honda CBF600SA",
+   "url": "https://www.manualslib.com/manual/1068381/Honda-Cbf600sa.html"
   },
   {
    "id": "filtro-aire",
@@ -27,46 +47,78 @@
    "alt": "Hiflofiltro HFA1618, K&N HA-5907",
    "perCar": "1",
    "verified": true,
-   "source": "Catálogo K&N (CBF600 2008–2010)"
-  },
-  {
-   "id": "kit-arrastre",
-   "group": "Transmisión",
-   "name": "Kit de arrastre (cadena 525 + piñón + corona)",
-   "oem": "",
-   "alt": "",
-   "perCar": "1",
-   "verified": false,
-   "notes": "Paso 525. Cuenta los dientes de piñón y corona antes de comprar (en la CBF600 anterior eran 15/43)."
+   "source": "Catálogo K&N · kits de mantenimiento PC43",
+   "url": "https://www.knfilters.com/honda/cbf600/599/2009"
   },
   {
    "id": "bujias",
    "group": "Encendido",
    "name": "Bujía",
    "oem": "",
-   "alt": "",
+   "alt": "NGK CR8EH-9",
    "perCar": "4",
-   "verified": false,
-   "notes": "Mira la referencia NGK en el manual del propietario o en la bujía usada."
+   "verified": true,
+   "notes": "Distancia entre electrodos: 0,80–0,90 mm.",
+   "source": "Manual de taller Honda CBF600SA",
+   "url": "https://www.manualslib.com/manual/1068381/Honda-Cbf600sa.html?page=76"
   },
   {
    "id": "pastillas-del",
    "group": "Frenos",
    "name": "Pastillas de freno delanteras",
    "oem": "",
-   "alt": "",
+   "alt": "EBC FA388HH (sinterizadas)",
    "perCar": "2 juegos",
    "verified": false,
-   "notes": "Mira la referencia en la microficha CMSNL."
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncios eBay (CBF600 ABS 2008–2013)",
+   "url": "https://www.ebay.com/b/EBC-Brake-Pads-for-Honda-CBF600-Front/177925/bn_33512126"
   },
   {
    "id": "pastillas-tras",
    "group": "Frenos",
    "name": "Pastillas de freno traseras",
    "oem": "",
-   "alt": "",
+   "alt": "EBC FA174HH (sinterizadas)",
    "perCar": "1 juego",
-   "verified": false
+   "verified": true,
+   "source": "SP Engineering · anuncio eBay (CBF600 S 2008–2013)",
+   "url": "https://www.spengineering.co.uk/honda-cbf600-2008-2010-ebc-hh-sintered-rear-brake-pads.html"
+  },
+  {
+   "id": "kit-arrastre",
+   "group": "Transmisión",
+   "name": "Kit de arrastre (cadena, piñón y corona)",
+   "oem": "",
+   "alt": "Paso 525",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Un catálogo da piñón de 16, corona de 42 y cadena de 124 eslabones; otros dan 15/43. Cuenta los dientes antes de comprar.",
+   "source": "Louis (PC43)",
+   "url": "https://www.louis.eu/en/bike-database/honda-cbf-600-abs/pc43/1970"
+  },
+  {
+   "id": "bateria",
+   "group": "Eléctrico",
+   "name": "Batería",
+   "oem": "31500-MCJ-305",
+   "alt": "Yuasa YTZ10S · 12 V 8,6 Ah · 190 A",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Medidas 150 × 87 × 93 mm.",
+   "source": "Honda Parts (CBF600SA 2010)",
+   "url": "https://www.honda-parts.eu/en/motorcycle/parts/battery/battery-ytz10s-honda-genuine-part"
+  },
+  {
+   "id": "neumaticos",
+   "group": "Ruedas",
+   "name": "Neumáticos",
+   "oem": "",
+   "alt": "Delantero 120/70-17 · trasero 160/60-17",
+   "perCar": "2",
+   "verified": true,
+   "source": "Motorcycle News (CBF600 2008–2013)",
+   "url": "https://www.motorcyclenews.com/bike-reviews/honda/cbf600/2008/"
   }
  ]
 }

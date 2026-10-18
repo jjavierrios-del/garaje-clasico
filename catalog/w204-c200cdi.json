@@ -1,29 +1,52 @@
 {
  "title": "Mercedes-Benz C 200 CDI (W204 · 204.001 · OM 651)",
  "vehicle": "Mercedes-Benz Clase C W204, C 200 CDI berlina (204.001), motor OM 651.913 diésel 2.143 cc, 136 CV. Fabricado de 11/2009 a 03/2014.",
- "links": [],
+ "links": [
+  {
+   "label": "Catálogo por versión (Autodoc 204.001)",
+   "url": "https://www.autodoc.co.uk/car-parts/timing-chain-kit-15065/mercedes-benz/c-klasse/c-class-w204/7518-c-200-cdi-204-001"
+  },
+  {
+   "label": "Aceites y líquidos (Kroon-Oil 204.001)",
+   "url": "https://www.kroon-oil.com/en/product-recommendation/cars/mercedes-benz-eu/c-class-w204-s204-c204/c-200-cdi-204-001-201/35518/"
+  }
+ ],
  "items": [
+  {
+   "id": "filtro-aceite",
+   "group": "Mantenimiento",
+   "name": "Filtro de aceite (cartucho)",
+   "oem": "A 651 180 01 09",
+   "alt": "MAHLE OX 153/7D2, MANN HU 7010 z, A 651 180 00 09",
+   "perCar": "1",
+   "verified": true,
+   "notes": "Cartucho del motor OM 651.",
+   "source": "Blauparts (OM 651) · ws-autoteile",
+   "url": "https://www.blauparts.com/mercedes-oil-filter-diesel-bluetec.html"
+  },
+  {
+   "id": "aceite",
+   "group": "Lubricación",
+   "name": "Aceite de motor",
+   "oem": "",
+   "alt": "MB 229.51 · 5W-30",
+   "perCar": "6,5 L con filtro",
+   "verified": true,
+   "notes": "Echa unos 6 L, arranca, espera y completa mirando la varilla: siempre queda algo dentro.",
+   "source": "Autodoc (204.001) · allcarspecs",
+   "url": "https://www.autodoc.co.uk/car-parts/engine-oil-12094/mercedes-benz/c-klasse/c-class-w204/7518-c-200-cdi-204-001"
+  },
   {
    "id": "filtro-aire",
    "group": "Mantenimiento",
    "name": "Filtro de aire",
-   "oem": "A 651 094 01 04",
-   "alt": "Hengst E1170L, MANN LX 1833",
+   "oem": "A 651 094 00 04",
+   "alt": "MANN C 35 003, MAHLE LX 1686/1",
    "perCar": "1",
-   "verified": false,
-   "notes": "Referencia del OM 651; un anuncio la da para el W204. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "IDParts (OM 651) · anuncio eBay"
-  },
-  {
-   "id": "filtro-aceite",
-   "group": "Lubricación",
-   "name": "Filtro de aceite (cartucho)",
-   "oem": "A 651 180 01 09",
-   "alt": "",
-   "perCar": "1",
-   "verified": false,
-   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay (W204 / W212 OM 651)"
+   "verified": true,
+   "notes": "La altura no coincide entre marcas (80 y 96 mm): compara con el que lleva.",
+   "source": "ws-autoteile (MANN C 35 003, W204 OM 651)",
+   "url": "https://www.ws-autoteile.com/en/i23422/mann-filter-luftfilter-c35003"
   },
   {
    "id": "filtro-gasoil",
@@ -32,20 +55,45 @@
    "oem": "A 651 090 16 52",
    "alt": "MANN WK 820/17, A 651 090 28 52",
    "perCar": "1",
-   "verified": false,
-   "notes": "Hay versiones con y sin purga de agua. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay (WK 820/17, C 200 CDI W204) · IDParts · foro MBClub"
+   "verified": true,
+   "notes": "Versión con purga de agua.",
+   "source": "IDParts · eBay · foro MBClub",
+   "url": "https://www.idparts.com/mercedes-om651-fuel-filter-mann-6510902852-wk82017-p-6165.html"
   },
   {
    "id": "filtro-habitaculo",
    "group": "Mantenimiento",
    "name": "Filtro de habitáculo (carbón activo)",
-   "oem": "A 204 830 00 18",
-   "alt": "A 212 830 03 18, RIDEX 424I0070",
+   "oem": "A 212 830 03 18",
+   "alt": "MANN CUK 29 005, MAHLE LAK 413, A 204 830 00 18",
    "perCar": "1",
    "verified": false,
-   "notes": "Las referencias cruzadas de los vendedores no coinciden. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncios eBay / ManoMano / autoparti.it"
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "AutohausAZ · eBay",
+   "url": "https://www.autohausaz.com/mercedes-auto-parts/mercedes-cabin_filter-replacement.html"
+  },
+  {
+   "id": "refrigerante",
+   "group": "Refrigeración",
+   "name": "Anticongelante",
+   "oem": "",
+   "alt": "MB 325.0 / 326.0",
+   "perCar": "10 L",
+   "verified": true,
+   "source": "oils-finder · otra ficha técnica",
+   "url": "https://oils-finder.com/index.php?model_code=cclass08"
+  },
+  {
+   "id": "termostato",
+   "group": "Refrigeración",
+   "name": "Termostato (95 °C)",
+   "oem": "A 651 200 27 00",
+   "alt": "",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Suele venir con junta, junta tórica y sensor de temperatura. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Anuncio eBay (OM 651 W204)",
+   "url": "https://www.ebay.com/itm/355215202009"
   },
   {
    "id": "calentadores",
@@ -55,49 +103,67 @@
    "alt": "",
    "perCar": "4",
    "verified": false,
-   "notes": "No encontré la referencia para el OM 651. Búscala en Partsouq con el bastidor."
+   "notes": "No encontré una referencia fiable para el OM 651. Búscala en el despiece oficial por bastidor."
   },
   {
    "id": "cadena",
    "group": "Distribución",
    "name": "Kit de cadena de distribución",
-   "oem": "",
-   "alt": "",
+   "oem": "A 651 052 00 16",
+   "alt": "Cadena A 000 993 46 76 · RIDEX 1389T0245",
    "perCar": "1",
    "verified": false,
-   "notes": "En el OM 651 la cadena va en la parte trasera del motor y es un punto débil conocido. Vigila ruidos al arrancar en frío."
+   "notes": "La cadena va en la parte trasera del motor y es un punto débil conocido del OM 651. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Autodoc (204.001) · anuncios",
+   "url": "https://www.autodoc.co.uk/car-parts/timing-chain-kit-15065/mercedes-benz/c-klasse/c-class-w204/7518-c-200-cdi-204-001"
   },
   {
    "id": "pastillas-del",
    "group": "Frenos",
    "name": "Pastillas de freno delanteras",
-   "oem": "A 005 420 12 20",
+   "oem": "A 007 420 57 20",
+   "alt": "A 007 420 92 20, Brembo P 50 067",
+   "perCar": "1 juego",
+   "verified": false,
+   "notes": "Comprueba si lleva paquete deportivo: cambian los discos. Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Foro MBWorld (C 200 CDI 2008–2014)",
+   "url": "https://mbworld.org/forums/c-class-w204/569444-what-part-numbers-front-rear-brake-pads-rotors.html"
+  },
+  {
+   "id": "pastillas-tras",
+   "group": "Frenos",
+   "name": "Pastillas de freno traseras",
+   "oem": "A 007 420 60 20",
    "alt": "",
    "perCar": "1 juego",
    "verified": false,
-   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay (referencia cruzada W204)"
+   "notes": "Confírmalo con el bastidor en el despiece oficial antes de comprar.",
+   "source": "Foro MBWorld (C 200 CDI 2008–2014)",
+   "url": "https://mbworld.org/forums/c-class-w204/569444-what-part-numbers-front-rear-brake-pads-rotors.html"
   },
   {
    "id": "discos-del",
    "group": "Frenos",
    "name": "Discos de freno delanteros",
-   "oem": "A 204 421 28 12",
-   "alt": "A 204 421 09 12, A 204 421 36 12",
+   "oem": "A 212 421 13 12",
+   "alt": "Perforados: A 204 421 28 12",
    "perCar": "2",
    "verified": false,
-   "notes": "Diámetro 295 mm según un kit. Hay discos lisos y perforados: mide el tuyo. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "ManoMano (kit discos W204)"
+   "notes": "Brembo da 295 × 28 mm ventilados en los C 200 W204 con paquete deportivo. Mide el tuyo.",
+   "source": "Foro MBWorld · catálogo Brembo (C 200 W204)",
+   "url": "https://www.bremboparts.com/america/en/catalogue/mercedes-benz-c-class-w204-c-200-204-048/000014024-1"
   },
   {
-   "id": "aceite",
-   "group": "Lubricación",
-   "name": "Aceite de motor",
-   "oem": "",
-   "alt": "MB 229.51 / 229.52 · 5W-30",
-   "perCar": "",
+   "id": "discos-tras",
+   "group": "Frenos",
+   "name": "Discos de freno traseros",
+   "oem": "A 204 423 15 12",
+   "alt": "",
+   "perCar": "2",
    "verified": false,
-   "notes": "Confirma la capacidad con filtro en el manual o en el libro de mantenimiento."
+   "notes": "300 × 10 mm macizos; grosor mínimo 8,3 mm según Brembo.",
+   "source": "Foro MBWorld · catálogo Brembo (C 200 W204)",
+   "url": "https://www.bremboparts.com/america/en/catalogue/mercedes-benz-c-class-w204-c-200-204-048/000014024-1"
   }
  ]
 }
