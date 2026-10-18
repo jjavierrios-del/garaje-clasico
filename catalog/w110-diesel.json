@@ -1,6 +1,6 @@
 {
- "title": "Mercedes-Benz 190 Dc / 200 D (W110 · 110.110 · OM 621)",
- "vehicle": "Mercedes-Benz W110 «Colas» diésel, chasis 110.110 y motor OM 621. Fue 190 Dc entre 1961 y 1965 (motor 621.912) y 200 D entre 1965 y 1968.",
+ "title": "Mercedes-Benz 200 D (W110 · 110.110 · OM 621)",
+ "vehicle": "Mercedes-Benz W110 «Colas» 200 D de 1968, chasis 110.110 y motor diésel OM 621. Comparte chasis con el 190 Dc (1961–1965).",
  "links": [
   {
    "label": "Catálogo clásico Niemöller (W110)",
@@ -15,8 +15,9 @@
    "oem": "183 353 03 73",
    "alt": "Niemöller C 35 134",
    "perCar": "2",
-   "verified": true,
-   "source": "Niemöller · 190 Dc W110.110, motor 621.912"
+   "verified": false,
+   "source": "Niemöller · 190 Dc W110.110, motor 621.912",
+   "notes": "Confirmada por Niemöller para el 190 Dc (mismo chasis 110.110). Comprueba que vale para el 200 D."
   },
   {
    "id": "kit-brazos",
@@ -25,8 +26,9 @@
    "oem": "120 586 00 33",
    "alt": "Niemöller C 33 108a",
    "perCar": "1",
-   "verified": true,
-   "source": "Niemöller · 190 Dc W110.110, motor 621.912"
+   "verified": false,
+   "source": "Niemöller · 190 Dc W110.110, motor 621.912",
+   "notes": "Confirmada por Niemöller para el 190 Dc (mismo chasis 110.110). Comprueba que vale para el 200 D."
   },
   {
    "id": "carter",

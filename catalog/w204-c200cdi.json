@@ -1,38 +1,40 @@
 {
- "title": "Mercedes-Benz C 200 CDI (W204 · 204.001 · OM 646)",
- "vehicle": "Mercedes-Benz Clase C W204, C 200 CDI berlina, motor OM 646.811 diésel 2.148 cc, 136 CV.",
+ "title": "Mercedes-Benz C 200 CDI (W204 · 204.001 · OM 651)",
+ "vehicle": "Mercedes-Benz Clase C W204, C 200 CDI berlina (204.001), motor OM 651.913 diésel 2.143 cc, 136 CV. Fabricado de 11/2009 a 03/2014.",
  "links": [],
  "items": [
   {
    "id": "filtro-aire",
    "group": "Mantenimiento",
    "name": "Filtro de aire",
-   "oem": "A 646 094 02 04",
-   "alt": "WIX WA9720",
-   "perCar": "1",
-   "verified": true,
-   "source": "Catálogo WIX Filters (WA9720: C 200 CDI W204, OM 646.811/812)"
-  },
-  {
-   "id": "filtro-gasoil",
-   "group": "Alimentación",
-   "name": "Filtro de gasoil",
-   "oem": "A 642 092 02 01",
-   "alt": "MANN WK 820/2 x",
+   "oem": "A 651 094 01 04",
+   "alt": "Hengst E1170L, MANN LX 1833",
    "perCar": "1",
    "verified": false,
-   "notes": "Hay versiones con y sin calefactor de filtro. Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay (W204 OM 646, 2.143 cc)"
+   "notes": "Referencia del OM 651; un anuncio la da para el W204. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "IDParts (OM 651) · anuncio eBay"
   },
   {
    "id": "filtro-aceite",
    "group": "Lubricación",
    "name": "Filtro de aceite (cartucho)",
-   "oem": "",
+   "oem": "A 651 180 01 09",
    "alt": "",
    "perCar": "1",
    "verified": false,
-   "notes": "No encontré una referencia fiable para el OM 646 del W204. Mira el número impreso en el cartucho al cambiarlo y apúntalo aquí."
+   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay (W204 / W212 OM 651)"
+  },
+  {
+   "id": "filtro-gasoil",
+   "group": "Alimentación",
+   "name": "Filtro de gasoil",
+   "oem": "A 651 090 16 52",
+   "alt": "MANN WK 820/17, A 651 090 28 52",
+   "perCar": "1",
+   "verified": false,
+   "notes": "Hay versiones con y sin purga de agua. Pendiente de confirmar con el bastidor en el catálogo oficial.",
+   "source": "Anuncio eBay (WK 820/17, C 200 CDI W204) · IDParts · foro MBClub"
   },
   {
    "id": "filtro-habitaculo",
@@ -49,23 +51,21 @@
    "id": "calentadores",
    "group": "Encendido",
    "name": "Bujía de precalentamiento",
-   "oem": "A 001 159 56 01",
+   "oem": "",
    "alt": "",
    "perCar": "4",
    "verified": false,
-   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncio eBay (C 200 CDI W204, OM 646.811/812)"
+   "notes": "No encontré la referencia para el OM 651. Búscala en Partsouq con el bastidor."
   },
   {
-   "id": "rele-calentadores",
-   "group": "Eléctrico",
-   "name": "Relé / centralita de precalentamiento",
-   "oem": "A 646 153 25 79",
+   "id": "cadena",
+   "group": "Distribución",
+   "name": "Kit de cadena de distribución",
+   "oem": "",
    "alt": "",
    "perCar": "1",
    "verified": false,
-   "notes": "Pendiente de confirmar con el bastidor en el catálogo oficial.",
-   "source": "Anuncios (C 200 CDI W204 2007–2010)"
+   "notes": "En el OM 651 la cadena va en la parte trasera del motor y es un punto débil conocido. Vigila ruidos al arrancar en frío."
   },
   {
    "id": "pastillas-del",
@@ -94,11 +94,10 @@
    "group": "Lubricación",
    "name": "Aceite de motor",
    "oem": "",
-   "alt": "MB 229.51 · 5W-30 / 5W-40",
-   "perCar": "≈ 6,5 L con filtro",
+   "alt": "MB 229.51 / 229.52 · 5W-30",
+   "perCar": "",
    "verified": false,
-   "notes": "Las fuentes no coinciden en la capacidad. Confírmala en el manual del coche.",
-   "source": "Foros MBClub / MBWorld"
+   "notes": "Confirma la capacidad con filtro en el manual o en el libro de mantenimiento."
   }
  ]
 }
