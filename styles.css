@@ -176,7 +176,7 @@ details.group .row:first-of-type { border-top: 1px solid var(--line); }
 /* Hoja */
 .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.5); opacity: 0; transition: opacity .2s; }
 .scrim.on { opacity: 1; }
-.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 92vh; max-height: 92dvh; overflow-y: auto; background: var(--surface); border-radius: 22px 22px 0 0; border-top: 1px solid var(--line); box-shadow: var(--shadow); transform: translateY(100%); transition: transform .25s cubic-bezier(.2,.8,.2,1); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-height: calc(100vh - 72px - env(safe-area-inset-top, 0px)); max-height: calc(100dvh - 72px - env(safe-area-inset-top, 0px)); overflow-y: auto; background: var(--surface); border-radius: 22px 22px 0 0; border-top: 1px solid var(--line); box-shadow: var(--shadow); transform: translateY(100%); transition: transform .25s cubic-bezier(.2,.8,.2,1); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .sheet.on { transform: none; }
 .sheet .wrap { padding-block: 10px 0; display: flex; flex-direction: column; gap: 14px; }
 .grabber { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 4px; }
@@ -296,3 +296,8 @@ a.btn.primary { color: var(--brass-ink); }
 .field label.check { text-transform: none; letter-spacing: 0; color: var(--fg); font-size: 13.5px; }
 .field label.g-add { text-transform: none; letter-spacing: 0; }
 .backup .btn { font-size: 14px; padding: 0 12px; }
+
+.sheet-head { position: sticky; top: 0; z-index: 3; display: flex; justify-content: center; align-items: center; min-height: 44px; margin: -10px -4px 0; padding-top: 6px; background: var(--surface); }
+.sheet-head .grabber { margin: 0; }
+.sheet-x { position: absolute; right: 0; top: 6px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); display: grid; place-items: center; }
+.sheet-x svg { width: 18px; height: 18px; }

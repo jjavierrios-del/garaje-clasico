@@ -475,15 +475,23 @@
   function selectText(el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Mantén pulsado para copiar"); }
 
   // ---------- Hojas ----------
+  // Las hojas y la ficha del vehículo entran en el historial: el gesto o botón «atrás» del móvil las cierra
+  let sheetOpen = false;
   function openSheet(html) {
     const sh = $("#sheet"), sc = $("#scrim");
-    $("#sheetBody").innerHTML = `<div class="grabber"></div>` + html;
+    if (!sheetOpen) { history.pushState({ ...(history.state || {}), sheet: true }, ""); sheetOpen = true; }
+    $("#sheetBody").innerHTML = `<div class="sheet-head"><span class="grabber"></span><button class="sheet-x" type="button" data-close aria-label="Cerrar"><svg><use href="#i-x"/></svg></button></div>` + html;
     $("#sheetBody").onclick = null;
     sh.hidden = false; sc.hidden = false;
     requestAnimationFrame(() => { sh.classList.add("on"); sc.classList.add("on"); });
     sh.scrollTop = 0;
   }
   function closeSheet() {
+    if (!sheetOpen) return;
+    if (history.state?.sheet) history.back(); else hideSheet();
+  }
+  function hideSheet() {
+    sheetOpen = false;
     const sh = $("#sheet"), sc = $("#scrim");
     sh.classList.remove("on"); sc.classList.remove("on");
     setTimeout(() => { if (sh.classList.contains("on")) return; sh.hidden = true; sc.hidden = true; $("#sheetBody").innerHTML = ""; }, 250);
@@ -1233,9 +1241,19 @@
   }
 
   // ---------- Eventos ----------
-  const goCar = (id, tab = "maint") => { S.tab = "car"; S.carId = id; S.carTab = tab; render(); scrollTo({ top: 0 }); };
+  const goCar = (id, tab = "maint") => {
+    if (S.tab !== "car") history.pushState({ car: id }, "");
+    S.tab = "car"; S.carId = id; S.carTab = tab; render(); scrollTo({ top: 0 });
+  };
+  const leaveCar = () => { if (history.state?.car) history.back(); else { S.tab = "garage"; render(); } };
+  window.addEventListener("popstate", () => {
+    if (sheetOpen) { hideSheet(); return; }
+    if (!$("#scanner").hidden) { $("#scanClose").click(); return; }
+    if (S.tab === "car" && !history.state?.car) { S.tab = "garage"; render(); }
+  });
   document.querySelector(".tabbar").addEventListener("click", e => {
     const t = e.target.closest("[data-tab]"); if (!t) return;
+    if (S.tab === "car" && history.state?.car) history.replaceState(null, "");
     S.tab = t.dataset.tab; render(); scrollTo({ top: 0 });
     if (S.tab === "search") setTimeout(() => $("#q")?.focus(), 50);
   });
@@ -1263,7 +1281,7 @@
     const d = el.dataset, car = carById(S.carId);
     if (d.car) goCar(d.car);
     else if (d.alertCar) goCar(d.alertCar);
-    else if (d.go) { S.tab = d.go; render(); }
+    else if (d.go) { if (S.tab === "car" && d.go === "garage") leaveCar(); else { S.tab = d.go; render(); } }
     else if (d.goto) { S.tab = d.goto; render(); }
     else if ("gotoShop" in d) { S.tab = "stock"; S.stockView = "shop"; render(); scrollTo({ top: 0 }); }
     else if ("gotoAlerts" in d) { const a = $("#avisos"); if (a) a.scrollIntoView({ behavior: "smooth", block: "start" }); else toast("No hay avisos"); }
