@@ -11,13 +11,16 @@ async function openApp(page, { guide = false } = {}) {
 
 function fakeGitHub() {
   const files = {};
+  const state = { tokens: new Set(["tok123"]), expiry: "" };
   let sha = 0;
   const handler = async (route) => {
     const req = route.request(), url = new URL(req.url());
     const m = url.pathname.match(/^\/repos\/u\/garaje-datos(?:\/contents\/(.*))?$/);
     const h = { "access-control-allow-origin": "*", "content-type": "application/json" };
+    // como GitHub con un token de caducidad fija; aquí la cabecera se deja leer
+    if (state.expiry) Object.assign(h, { "github-authentication-token-expiration": state.expiry, "access-control-expose-headers": "github-authentication-token-expiration" });
     if (!m) return route.fulfill({ status: 404, headers: h, body: "{}" });
-    if (req.headers()["authorization"] !== "Bearer tok123") return route.fulfill({ status: 401, headers: h, body: "{}" });
+    if (!state.tokens.has((req.headers()["authorization"] || "").replace("Bearer ", ""))) return route.fulfill({ status: 401, headers: h, body: "{}" });
     const p = m[1] && decodeURIComponent(m[1]);
     if (!p) return route.fulfill({ headers: h, body: JSON.stringify({ private: true, permissions: { push: true } }) });
     if (req.method() === "GET") {
@@ -38,7 +41,7 @@ function fakeGitHub() {
     }
     route.fulfill({ status: 405, body: "" });
   };
-  return { files, handler };
+  return { files, handler, state };
 }
 
 const isoDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);

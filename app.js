@@ -392,16 +392,21 @@
   async function gh(path, { raw, cfg = syncCfg(), ...opts } = {}) {
     const headers = { Authorization: "Bearer " + cfg.token, Accept: raw ? "application/vnd.github.raw" : "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
     if (opts.body) headers["Content-Type"] = "application/json";
-    return fetch(`https://api.github.com/repos/${cfg.repo}${path ? "/" + path : ""}`, { ...opts, headers, cache: "no-store" });
+    const r = await fetch(`https://api.github.com/repos/${cfg.repo}${path ? "/" + path : ""}`, { ...opts, headers, cache: "no-store" });
+    // GitHub indica cuándo caduca el token (si el navegador deja leer la cabecera)
+    const exp = (r.headers.get("github-authentication-token-expiration") || "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(exp) && exp !== cfg.expires) { cfg.expires = exp; if (syncCfg()?.token === cfg.token) lsSet("syncCfg", JSON.stringify({ ...syncCfg(), expires: exp })); }
+    return r;
   }
   const ghError = (r) => r.status === 401 ? "El token no es válido o ha caducado." : r.status === 403 ? "El token no tiene permiso para ese repositorio." : r.status === 404 ? "No encuentro el repositorio o el token no tiene acceso a él." : "GitHub respondió con un error (" + r.status + ").";
+  const ghFail = (r) => Object.assign(new Error(ghError(r)), { auth: r.status === 401 });
   async function getRemote() {
     const r = await gh("contents/garaje.json");
     if (r.status === 404) return { sha: null, data: null };
-    if (!r.ok) throw new Error(ghError(r));
+    if (!r.ok) throw ghFail(r);
     const j = await r.json();
     let text = j.encoding === "base64" && j.content ? b64decode(j.content) : null;
-    if (text === null) { const rr = await gh("contents/garaje.json", { raw: true }); if (!rr.ok) throw new Error(ghError(rr)); text = await rr.text(); }
+    if (text === null) { const rr = await gh("contents/garaje.json", { raw: true }); if (!rr.ok) throw ghFail(rr); text = await rr.text(); }
     return { sha: j.sha, data: JSON.parse(text) };
   }
   const newer = (a, b) => (a.updatedAt || "") >= (b.updatedAt || "") ? a : b;
@@ -438,7 +443,7 @@
           if (sha) body.sha = sha;
           const r = await gh("contents/garaje.json", { method: "PUT", body: JSON.stringify(body) });
           if (r.status === 409 || r.status === 422) continue; // el otro móvil acaba de guardar: se vuelve a mezclar
-          if (!r.ok) throw new Error(ghError(r));
+          if (!r.ok) throw ghFail(r);
         }
         if (localChanged) { await loadAll(); render(); }
         done = true;
@@ -446,10 +451,12 @@
       if (!done) throw new Error("El otro móvil está guardando a la vez. Se reintentará.");
       await syncFiles();
       lsSet("lastSync", new Date().toISOString());
+      if (lsGet("syncAuthFail")) lsSet("syncAuthFail", "");
       setSyncState("Sincronizado"); render();
       if (manual) toast("Sincronizado");
     } catch (e) {
       setSyncState("Sin sincronizar");
+      if (e.auth && !lsGet("syncAuthFail")) { lsSet("syncAuthFail", "1"); render(); }
       if (manual) toast(e.message || "No se pudo sincronizar");
     } finally {
       syncing = false;
@@ -470,7 +477,7 @@
       const local = await getBlob(id);
       if (local && !remote.has(id)) {
         const put = await gh("contents/archivos/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify({ message: "Archivo " + id, content: (await blobToData(local)).split(",")[1] }) });
-        if (!put.ok && put.status !== 422) throw new Error(ghError(put));
+        if (!put.ok && put.status !== 422) throw ghFail(put);
       } else if (!local && remote.has(id)) {
         const g = await gh("contents/archivos/" + encodeURIComponent(id), { raw: true });
         if (!g.ok) continue;
@@ -489,9 +496,46 @@
     const j = await r.json();
     if (!j.private) { toast("Ese repositorio es público: hazlo privado antes de guardar ahí tus datos"); return false; }
     if (j.permissions && !j.permissions.push) { toast("El token no tiene permiso de escritura (Contents: Read and write)"); return false; }
-    lsSet("syncCfg", JSON.stringify({ repo: cfg.repo, token: cfg.token }));
+    lsSet("syncCfg", JSON.stringify({ repo: cfg.repo, token: cfg.token, expires: cfg.expires || "" }));
+    lsSet("syncAuthFail", "");
     await syncNow(true);
     return true;
+  }
+  // El token de GitHub caduca (un año al crearlo): se avisa 30 días antes y si deja de valer
+  const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const tokenUrl = (cfg) => `https://github.com/settings/personal-access-tokens/new?name=Garaje%20Clasico&target_name=${encodeURIComponent((cfg?.repo || "").split("/")[0])}&expires_in=366&contents=write`;
+  function tokenStatus() {
+    const cfg = syncCfg(); if (!cfg) return null;
+    const d = cfg.expires ? daysUntil(cfg.expires) : null;
+    if (lsGet("syncAuthFail") || (d !== null && d < 0)) return { state: "overdue", text: "La sincronización está cortada: el token " + (d !== null && d < 0 ? "caducó el " + fmtDate(cfg.expires) : "ya no es válido") + ". Hay que crear uno nuevo y volver a conectar los móviles." };
+    if (d !== null && d <= 30) return { state: "soon", text: `El token de la sincronización caduca ${relDays(d)} (${fmtDate(cfg.expires)}). Renuévalo antes para que no se corte.` };
+    return null;
+  }
+  function linkSheet(cfg) {
+    const link = location.origin + location.pathname + "#sync=" + b64url(JSON.stringify(cfg));
+    openSheet(`<h2>Enlace para el otro móvil</h2><p class="lead">Mándalo por WhatsApp. En el otro móvil: Opciones → «Pegar enlace».</p><pre class="share-text" id="syncTxt">${esc(link)}</pre>
+      <p class="banner">El enlace lleva la llave de acceso a vuestros datos: mándalo solo a tu padre.</p>
+      <div class="actions"><button class="btn primary" type="button" id="copySync">Copiar el enlace</button>${navigator.share ? `<button class="btn" type="button" id="shareSync">Compartir</button>` : ""}</div>`);
+    $("#copySync").onclick = () => copyText(link, $("#syncTxt"), "Enlace copiado");
+    $("#shareSync")?.addEventListener("click", () => navigator.share({ text: link }).catch(() => {}));
+  }
+  function renewSheet() {
+    const cfg = syncCfg(); if (!cfg) return syncSheet();
+    openSheet(`<h2>Renovar el token</h2>
+      <p class="lead">Los datos no se tocan: solo cambia la llave con la que la app entra en <span class="mono">${esc(cfg.repo)}</span>.</p>
+      <ol class="steps">
+        <li>Abre <a href="${esc(tokenUrl(cfg))}" target="_blank" rel="noopener">crear un token nuevo en GitHub</a>. Elige solo <span class="mono">${esc(cfg.repo.split("/")[1] || "")}</span>, con <b>Contents: Read and write</b>, y pulsa «Generate token».</li>
+        <li>Cópialo y pégalo aquí.</li>
+        <li>Después manda el enlace nuevo al otro móvil.</li>
+      </ol>
+      <form class="form">${field("r_token", "Token nuevo", "", { full: true, mono: true, ph: "github_pat_…" })}${field("r_exp", "Caduca el", inDays(366), { type: "date", full: true })}</form>
+      <div class="actions"><button class="btn primary" type="button" id="renewGo">Guardar</button><button class="btn" type="button" data-close>Cancelar</button></div>
+      <p class="note">Si no tienes GitHub a mano, pide el enlace nuevo a quien lo gestiona y ábrelo en este móvil.</p>`);
+    $("#renewGo").onclick = async () => {
+      $("#renewGo").disabled = true;
+      if (await connectSync({ repo: cfg.repo, token: val("r_token"), expires: val("r_exp") })) { toast("Token renovado"); linkSheet(syncCfg()); }
+      else if ($("#renewGo")) $("#renewGo").disabled = false;
+    };
   }
   function syncSheet() {
     const cfg = syncCfg(), last = lsGet("lastSync");
@@ -503,29 +547,28 @@
           <li>Crea un token en <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens</a> con acceso solo a ese repositorio y el permiso <b>Contents: Read and write</b>.</li>
           <li>Pega aquí el repositorio y el token.</li>
         </ol>
-        <form class="form">${field("y_repo", "Repositorio", "", { full: true, mono: true, ph: "usuario/garaje-datos" })}${field("y_token", "Token", "", { full: true, mono: true, ph: "github_pat_…" })}</form>
+        <form class="form">${field("y_repo", "Repositorio", "", { full: true, mono: true, ph: "usuario/garaje-datos" })}${field("y_token", "Token", "", { full: true, mono: true, ph: "github_pat_…" })}${field("y_exp", "El token caduca el", inDays(366), { type: "date", full: true })}</form>
         <div class="actions"><button class="btn primary" type="button" id="syncGo">Conectar</button><button class="btn" type="button" data-close>Cancelar</button></div>
         <p class="note">¿Te han mandado un enlace? Ciérralo y usa «Pegar enlace» en Opciones.</p>`);
-      $("#syncGo").onclick = async () => { $("#syncGo").disabled = true; const ok = await connectSync({ repo: val("y_repo"), token: val("y_token") }); if (ok) closeSheet(); else if ($("#syncGo")) $("#syncGo").disabled = false; };
+      $("#syncGo").onclick = async () => { $("#syncGo").disabled = true; const ok = await connectSync({ repo: val("y_repo"), token: val("y_token"), expires: val("y_exp") }); if (ok) closeSheet(); else if ($("#syncGo")) $("#syncGo").disabled = false; };
       return;
     }
     openSheet(`<h2>Compartir entre móviles</h2>
       <p class="lead">Conectado a <span class="mono">${esc(cfg.repo)}</span>. ${last ? "Última sincronización: " + new Date(last).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + "." : "Todavía no se ha sincronizado."}</p>
+      ${(() => { const t = tokenStatus(); return t ? `<p class="banner">${esc(t.text)}</p>` : ""; })()}
+      <form class="form"><div class="field full"><label for="y_exp2">El token caduca el</label><div class="with-btn"><input id="y_exp2" type="date" value="${esc(cfg.expires || "")}"><button class="mini" type="button" id="saveExp">Guardar</button></div></div></form>
+      ${cfg.expires ? "" : `<p class="note">Pon la fecha que eligió GitHub al crear el token y la app te avisará un mes antes.</p>`}
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" id="syncNowBtn">Sincronizar ahora</button>
         <button class="btn" type="button" id="syncLink">Enlace para el otro móvil</button>
+        <button class="btn" type="button" id="renewBtn">Renovar el token</button>
         <button class="btn danger" type="button" id="syncOff">Desconectar este móvil</button>
       </div>
       <p class="note">Los cambios se sincronizan solos al abrir la app y unos segundos después de cada cambio, si hay conexión.</p>`);
     $("#syncNowBtn").onclick = () => syncNow(true);
-    $("#syncLink").onclick = () => {
-      const link = location.origin + location.pathname + "#sync=" + b64url(JSON.stringify(cfg));
-      openSheet(`<h2>Enlace para el otro móvil</h2><p class="lead">Mándalo por WhatsApp. En el otro móvil: Opciones → «Pegar enlace».</p><pre class="share-text" id="syncTxt">${esc(link)}</pre>
-        <p class="banner">El enlace lleva la llave de acceso a vuestros datos: mándalo solo a tu padre.</p>
-        <div class="actions"><button class="btn primary" type="button" id="copySync">Copiar el enlace</button>${navigator.share ? `<button class="btn" type="button" id="shareSync">Compartir</button>` : ""}</div>`);
-      $("#copySync").onclick = () => copyText(link, $("#syncTxt"), "Enlace copiado");
-      $("#shareSync")?.addEventListener("click", () => navigator.share({ text: link }).catch(() => {}));
-    };
+    $("#syncLink").onclick = () => linkSheet(syncCfg());
+    $("#renewBtn").onclick = renewSheet;
+    $("#saveExp").onclick = () => { lsSet("syncCfg", JSON.stringify({ ...syncCfg(), expires: $("#y_exp2").value })); render(); syncSheet(); toast("Fecha guardada"); };
     $("#syncOff").onclick = () => confirmSheet("¿Desconectar este móvil?", "Los datos se quedan en este teléfono y en GitHub, pero dejan de sincronizarse.", async () => { lsSet("syncCfg", ""); setSyncState("En este teléfono"); closeSheet(); toast("Desconectado"); });
   }
 
@@ -541,6 +584,8 @@
       });
       S.docs.filter(d => d.carId === c.id && d.expiry && !DOC_DATE_FIELD[d.type]).forEach(d => ev.push({ uid: `${c.id}-doc-${d.id}`, date: d.expiry, title: `Caduca: ${d.title || d.type} · ${name}`, desc: d.type }));
     }
+    const cfg = syncCfg();
+    if (cars.length > 1 && cfg?.expires) ev.push({ uid: "token-sincronizacion", date: cfg.expires, title: "Caduca el token de Garaje Clásico", desc: "Crea un token nuevo en GitHub y conéctalo en la app (Opciones → Compartir entre móviles → Renovar el token)." });
     return ev.sort((a, b) => a.date.localeCompare(b.date));
   }
   function buildICS(events) {
@@ -1513,9 +1558,10 @@
         </div>`;
     }
     const alerts = allAlerts(), shown = S.allAlerts ? alerts : alerts.slice(0, 5);
-    const backup = backupNeeded();
+    const backup = backupNeeded(), tok = tokenStatus();
     const anyTracking = S.logs.length || S.cars.some(c => c.itvDate || c.insuranceDate || c.taxDate);
     return `
+      ${tok ? `<div class="backup${tok.state === "overdue" ? " crit" : ""}" id="tokenWarn"><div><strong>Sincronización</strong><span>${esc(tok.text)}</span></div><div class="actions"><button class="btn primary" type="button" data-renew>Renovar el token</button></div></div>` : ""}
       ${backup ? `<div class="backup"><div><strong>Copia de seguridad</strong><span>${esc(backup)} Los datos solo están en este teléfono: guárdala en Drive, en el correo o en WhatsApp.</span></div><div class="actions"><button class="btn primary" type="button" data-backup><svg><use href="#i-down"/></svg>Hacer copia ahora</button><button class="btn" type="button" data-snooze>Dentro de una semana</button></div></div>` : ""}
       <div class="gauges">
         <button class="gauge" type="button" data-goto="garage"><b>${S.cars.length}</b><span>Vehículos</span></button>
@@ -1814,6 +1860,7 @@
     else if ("gotoAlerts" in d) { const a = $("#avisos"); if (a) a.scrollIntoView({ behavior: "smooth", block: "start" }); else toast("No hay avisos"); }
     else if ("allAlerts" in d) { S.allAlerts = true; render(); }
     else if ("backup" in d) exportBackup();
+    else if ("renew" in d) renewSheet();
     else if ("snooze" in d) { lsSet("backupSnooze", new Date(Date.now() + 7 * 86400000).toISOString()); render(); toast("Te lo recuerdo dentro de una semana"); }
     else if ("addCar" in d) carForm();
     else if ("editCar" in d) carForm(car);
