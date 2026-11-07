@@ -370,6 +370,16 @@ a.btn.primary { color: var(--brass-ink); }
   .r-grid tfoot th { border-top: 1pt solid #111; }
   .r-notes { white-space: pre-wrap; }
   .report footer { margin-top: 18px; font-size: 8pt; color: #777; }
+  .qr-sheet { display: grid; gap: 6mm; font-family: var(--f-body, sans-serif); color: #000; }
+  .qr-sheet.small { grid-template-columns: repeat(3, 1fr); }
+  .qr-sheet.big { grid-template-columns: repeat(2, 1fr); gap: 10mm; }
+  .qr-label { border: .6pt dashed #999; border-radius: 3mm; padding: 4mm; display: flex; flex-direction: column; align-items: center; gap: 2mm; break-inside: avoid; text-align: center; }
+  .qr-sheet.small .qr { width: 40mm; }
+  .qr-sheet.big .qr { width: 70mm; }
+  .qr svg { display: block; width: 100%; height: auto; }
+  .qr-text strong { display: block; font-family: var(--f-display, sans-serif); font-size: 15pt; line-height: 1.05; text-transform: uppercase; }
+  .qr-sheet.big .qr-text strong { font-size: 24pt; }
+  .qr-text span { font-size: 7pt; color: #555; letter-spacing: .04em; }
 }
 
 /* Mapa del taller */
@@ -389,3 +399,4 @@ a.btn.primary { color: var(--brass-ink); }
 label.btn { cursor: pointer; }
 .backup.crit { border-color: color-mix(in srgb, var(--crit) 55%, transparent); background: color-mix(in srgb, var(--crit) 10%, var(--surface)); }
 .backup.crit strong { color: var(--crit); }
+.checks .check small { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }

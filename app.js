@@ -708,6 +708,8 @@
   }
   async function scanToStock() {
     const code = await scanCode(); if (!code) return;
+    const place = placeFromCode(code);
+    if (place) return placeSheet(place);
     const found = S.parts.find(p => p.barcode && codeKey(p.barcode) === codeKey(code));
     if (found) {
       openSheet(`<h2>${esc(found.name)}</h2>
@@ -1118,17 +1120,17 @@
       <footer>Ficha generada con Garaje Clásico el ${fmtDate(today())}</footer>
     </article>`;
   }
-  async function printCar(c) {
-    if (!c) return;
+  async function printHtml(html, title) {
     let box = $("#print");
     if (!box) { box = document.createElement("div"); box.id = "print"; document.body.appendChild(box); }
-    box.innerHTML = carReport(c);
+    box.innerHTML = html;
     await Promise.all([...box.querySelectorAll("img")].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; setTimeout(r, 4000); })));
     const old = document.title;
-    document.title = "Ficha " + carName(c) + (c.plate ? " " + c.plate : "");
-    toast("Elige «Guardar como PDF» o compártelo");
+    document.title = title;
+    toast("Elige la impresora o «Guardar como PDF»");
     setTimeout(() => { window.print(); document.title = old; }, 300);
   }
+  const printCar = (c) => c && printHtml(carReport(c), "Ficha " + carName(c) + (c.plate ? " " + c.plate : ""));
 
   // ---------- Mapa del taller ----------
   // Fotos de las estanterías con una marca en cada sitio. El nombre de la marca es la «ubicación» de los repuestos.
@@ -1177,7 +1179,7 @@
       const here = partsAt(p.label);
       panel.innerHTML = `<div class="pin-panel"><div class="section-head result-head"><span class="eyebrow"><span class="pin-n">${i + 1}</span>${esc(p.label)}</span></div>
         ${here.length ? `<div class="list">${here.map(x => `<div class="row"><button class="row-main" type="button" data-pin-part="${x.id}"><strong>${esc(x.name)}</strong><span class="row-meta"><span>${qtyFmt(num(x.qty))} ${esc(x.unit || "ud")}</span><span>${esc(carName(carById(x.carId)))}</span></span></button></div>`).join("")}</div>` : `<p class="note">Todavía no hay repuestos con esta ubicación.</p>`}
-        <div class="actions"><button class="btn" type="button" id="pinRen">Renombrar</button><button class="btn danger" type="button" id="pinDel">Quitar la marca</button></div></div>`;
+        <div class="actions"><button class="btn" type="button" id="pinQr">Etiqueta QR</button><button class="btn" type="button" id="pinRen">Renombrar</button><button class="btn danger" type="button" id="pinDel">Quitar la marca</button></div></div>`;
       panel.querySelectorAll("[data-pin-part]").forEach(b => b.onclick = () => partForm(S.parts.find(x => x.id === b.dataset.pinPart)));
       $("#pinRen").onclick = () => labelForm("Nuevo nombre del sitio", p.label, async (v) => {
         // los repuestos guardados ahí cambian también de ubicación
@@ -1185,6 +1187,7 @@
         savePins(map, pins.map((q, j) => j === i ? { ...q, label: v } : q), i);
       });
       $("#pinDel").onclick = () => savePins(map, pins.filter((_, j) => j !== i));
+      $("#pinQr").onclick = () => printLabels([p.label], "big");
       panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     };
     box.addEventListener("click", (e) => {
@@ -1206,6 +1209,64 @@
     };
     $("#delMap").onclick = () => confirmSheet(`¿Borrar «${esc(map.name)}»?`, "Se borran la foto y sus marcas. Los repuestos no cambian.", async () => { await dropBlob(map.photoId); await remove("maps", map.id); closeSheet(); toast("Foto borrada"); });
     if (focus >= 0) showPin(focus);
+  }
+
+  // ---------- Etiquetas QR de los sitios del taller ----------
+  // El QR lleva un enlace a la app (#sitio=…): lo lee el escáner de la app y también la cámara del móvil
+  const placeLink = (label) => location.origin + location.pathname + "#sitio=" + encodeURIComponent(label);
+  const placeFromCode = (text) => { const m = String(text).match(/#sitio=([^&\s]+)/); if (!m) return null; try { return decodeURIComponent(m[1]); } catch { return null; } };
+  function places() {
+    const seen = new Map();
+    [...S.maps.flatMap(m => (m.pins || []).map(p => p.label)), ...locations()].forEach(l => { const k = placeKey(l); if (k && !seen.has(k)) seen.set(k, l.trim()); });
+    return [...seen.values()].sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+  }
+  function placeSheet(label) {
+    const here = partsAt(label).sort((a, b) => a.name.localeCompare(b.name, "es"));
+    openSheet(`<p class="eyebrow"><svg class="ico"><use href="#i-pin"/></svg>Sitio del taller</p><h2>${esc(label)}</h2>
+      ${here.length ? `<div class="list">${here.map(x => `<div class="row"><button class="row-main" type="button" data-place-part="${x.id}"><strong>${esc(x.name)}</strong><span class="row-meta"><span>${qtyFmt(num(x.qty))} ${esc(x.unit || "ud")}</span><span>${esc(carName(carById(x.carId)))}</span>${stockState(x) === "zero" ? `<span class="chip crit">Agotado</span>` : stockState(x) === "low" ? `<span class="chip warn">Reponer</span>` : ""}</span></button></div>`).join("")}</div>`
+        : `<p class="lead">Aquí todavía no hay ningún repuesto apuntado.</p>`}
+      <div class="actions" style="flex-direction:column">
+        <button class="btn primary" type="button" id="placeAdd"><svg><use href="#i-plus"/></svg>Guardar aquí un repuesto</button>
+        ${pinFor(label) ? `<button class="btn" type="button" id="placeMap"><svg><use href="#i-pin"/></svg>Ver en el mapa</button>` : ""}
+        <button class="btn" type="button" id="placeQr"><svg><use href="#i-scan"/></svg>Imprimir su etiqueta</button>
+      </div>`);
+    $("#sheetBody").querySelectorAll("[data-place-part]").forEach(b => b.onclick = () => partForm(S.parts.find(x => x.id === b.dataset.placePart)));
+    $("#placeAdd").onclick = () => partForm({ location: label, qty: 1 });
+    $("#placeMap")?.addEventListener("click", () => showOnMap(label));
+    $("#placeQr").onclick = () => printLabels([label], "big");
+  }
+  async function qrSvg(text) {
+    // Matriz de módulos (1 px por módulo, con margen) dibujada como un solo trazado para que no queden rendijas
+    const ZX = await loadZXing(), hints = new Map([[ZX.EncodeHintType.MARGIN, 2], [ZX.EncodeHintType.ERROR_CORRECTION, "M"]]);
+    const m = new ZX.QRCodeWriter().encode(text, ZX.BarcodeFormat.QR_CODE, 1, 1, hints);
+    const n = m.getWidth();
+    let d = "";
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (m.get(x, y)) d += `M${x} ${y}h1v1h-1z`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+  }
+  async function printLabels(labels, size = "small") {
+    if (!labels.length) return;
+    toast("Preparando las etiquetas…");
+    let cells;
+    try { cells = await Promise.all(labels.map(async l => `<div class="qr-label"><div class="qr">${await qrSvg(placeLink(l))}</div><div class="qr-text"><strong>${esc(l)}</strong><span>Garaje Clásico · escanéame</span></div></div>`)); }
+    catch { toast("No se pudieron crear los códigos. Revisa la conexión y vuelve a probar"); return; }
+    printHtml(`<div class="qr-sheet ${size}">${cells.join("")}</div>`, "Etiquetas del taller");
+  }
+  function labelsSheet() {
+    const all = places();
+    if (!all.length) { toast("Primero apunta dónde está guardado algún repuesto o marca sitios en el mapa"); return; }
+    openSheet(`<h2>Etiquetas QR</h2>
+      <p class="lead">Imprime una etiqueta por cada sitio y pégala en la caja o el cajón. Al escanearla con la app, o con la cámara del móvil, verás lo que hay dentro.</p>
+      <div class="field"><span class="eyebrow">Tamaño</span><div class="seg two" role="group" aria-label="Tamaño de las etiquetas"><button type="button" data-qsize="small" aria-pressed="true">Pequeñas</button><button type="button" data-qsize="big" aria-pressed="false">Grandes</button></div></div>
+      <fieldset class="field full checks"><legend>Sitios · ${all.length}</legend>${all.map((l, i) => `<label class="check"><input type="checkbox" data-qlabel="${i}" checked>${esc(l)} <small>${partsAt(l).length}</small></label>`).join("")}</fieldset>
+      <div class="actions"><button class="btn primary" type="button" id="qrPrint">Imprimir ${all.length} ${all.length === 1 ? "etiqueta" : "etiquetas"}</button><button class="btn" type="button" data-close>Cancelar</button></div>
+      <p class="note">En el móvil, la ventana de imprimir también permite guardarlas como PDF para imprimirlas en otro sitio. Las pequeñas caben 12 por folio; las grandes, 4.</p>`);
+    let size = "small";
+    const chosen = () => all.filter((_, i) => $(`[data-qlabel="${i}"]`).checked);
+    const upd = () => { const n = chosen().length; $("#qrPrint").textContent = `Imprimir ${n} ${n === 1 ? "etiqueta" : "etiquetas"}`; $("#qrPrint").disabled = !n; };
+    $("#sheetBody").querySelectorAll("[data-qlabel]").forEach(c => c.onchange = upd);
+    $("#sheetBody").querySelectorAll("[data-qsize]").forEach(b => b.onclick = () => { size = b.dataset.qsize; $("#sheetBody").querySelectorAll("[data-qsize]").forEach(x => x.setAttribute("aria-pressed", x === b)); });
+    $("#qrPrint").onclick = () => printLabels(chosen(), size);
   }
 
   // ---------- Lista de la compra ----------
@@ -1356,6 +1417,8 @@
 
   // Enlace de alta: #importar=<json en base64url>. El fragmento nunca llega al servidor.
   async function importFromLink(text = location.hash) {
+    const place = placeFromCode(text);
+    if (place) { if (location.hash) history.replaceState(history.state, "", location.pathname + location.search); placeSheet(place); return; }
     const sm = String(text).match(/#sync=([A-Za-z0-9_-]+)/);
     if (sm) {
       if (location.hash) history.replaceState(history.state, "", location.pathname + location.search);
@@ -1752,7 +1815,7 @@
     return `
       ${S.maps.length ? `<div class="maps">${S.maps.map(m => { const n = (m.pins || []).length, k = (m.pins || []).reduce((t, p) => t + partsAt(p.label).length, 0); return `<button class="map-card" type="button" data-map="${m.id}">${blobUrl(m.photoId) ? `<img src="${esc(blobUrl(m.photoId))}" alt="">` : `<span class="map-ph"></span>`}<span class="map-text"><strong>${esc(m.name)}</strong><span>${n} ${n === 1 ? "sitio" : "sitios"} · ${k} ${k === 1 ? "repuesto" : "repuestos"}</span></span></button>`; }).join("")}</div>`
       : `<div class="empty"><svg width="40" height="40" style="color:var(--brass)"><use href="#i-pin"/></svg><h3>El mapa del taller</h3><p>Haz una foto de cada estantería o armario y marca en ella dónde está cada caja. Al buscar un repuesto, la app te enseña el sitio exacto.</p></div>`}
-      <label class="btn primary"><input type="file" accept="image/*" id="mapInput" hidden><svg><use href="#i-cam"/></svg>Añadir foto del taller</label>
+      <div class="actions" style="flex-direction:column"><label class="btn primary"><input type="file" accept="image/*" id="mapInput" hidden><svg><use href="#i-cam"/></svg>Añadir foto del taller</label>${places().length ? `<button class="btn" type="button" data-qr-labels><svg><use href="#i-scan"/></svg>Etiquetas QR</button>` : ""}</div>
       ${unplaced.length && S.maps.length ? `<p class="note">Sin marcar en ninguna foto: ${unplaced.map(esc).join(", ")}.</p>` : ""}`;
   }
   function viewCatalog() {
@@ -1854,6 +1917,7 @@
     else if (d.sg) { S.stockGroup = d.sg; render(); }
     else if (d.map) mapSheet(S.maps.find(m => m.id === d.map));
     else if (d.mapLoc) showOnMap(d.mapLoc);
+    else if ("qrLabels" in d) labelsSheet();
     else if (d.go) { if (S.tab === "car" && d.go === "garage") leaveCar(); else { S.tab = d.go; render(); } }
     else if (d.goto) { S.tab = d.goto; render(); }
     else if ("gotoShop" in d) { S.tab = "stock"; S.stockView = "shop"; render(); scrollTo({ top: 0 }); }
