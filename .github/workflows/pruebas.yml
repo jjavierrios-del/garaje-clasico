@@ -5,12 +5,12 @@ on:
   pull_request:
 jobs:
   pruebas:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright 1.56 todavía no instala Chromium en ubuntu-latest (26.04)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm test
