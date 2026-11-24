@@ -1,0 +1,6 @@
+{
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "editor.tabSize": 2,
+  "files.exclude": { "test-results": true, "playwright-report": true }
+}
