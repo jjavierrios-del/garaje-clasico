@@ -30,7 +30,8 @@
    "color": "",
    "notes": "",
    "wiki": "en:Honda_CBF600",
-   "kind": "moto"
+   "kind": "moto",
+   "photo": "fotos/honda-cbf600.jpg"
   },
   {
    "id": "c-e36",
@@ -41,12 +42,13 @@
    "vin": "WBABH31000EH16983",
    "engine": "M43",
    "catalogKey": "e36-318i-cabrio",
-   "plate": "",
+   "plate": "6860 CZZ",
    "km": "",
    "color": "",
    "notes": "",
    "wiki": "en:BMW_3_Series_(E36)",
-   "kind": "coche"
+   "kind": "coche",
+   "photo": "fotos/bmw-e36.jpg"
   },
   {
    "id": "c-forza",
@@ -147,7 +149,8 @@
    "km": "",
    "color": "",
    "wiki": "en:SEAT_124",
-   "kind": "coche"
+   "kind": "coche",
+   "photo": "fotos/seat-124.jpg"
   }
  ]
 }

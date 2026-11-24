@@ -79,3 +79,52 @@ test("sincronización entre dos móviles con un repositorio privado", async ({ b
   await a.click(".sheet-x");
   await expect(a.locator(".row", { hasText: "Junta de culata" })).toHaveCount(0);
 });
+
+test("copia semanal en GitHub: se guarda sola, una por semana, y se puede volver a ella", async ({ browser }) => {
+  const gh = fakeGitHub();
+  const ctx = await browser.newContext();
+  await ctx.route("https://api.github.com/**", gh.handler);
+  const a = await ctx.newPage();
+  await openApp(a);
+  await a.click('[data-tab="stock"]');
+  await a.click("#fab");
+  await a.fill("#p_name", "Bujía antigua");
+  await a.click("#savePart");
+  await a.click("#menuBtn");
+  await a.click("#syncBtn");
+  await a.fill("#y_repo", "u/garaje-datos");
+  await a.fill("#y_token", "tok123");
+  await a.click("#syncGo");
+  await expect(a.locator("#syncState")).toHaveText("Sincronizado");
+  // al sincronizar se guarda la primera copia, sin las fotos dentro
+  const copias = () => Object.keys(gh.files).filter((k) => k.startsWith("copias/"));
+  await expect.poll(copias).toHaveLength(1);
+  const copia = JSON.parse(Buffer.from(gh.files[copias()[0]].content, "base64").toString());
+  expect(copia.fotosEnServidor).toBe(true);
+  expect(copia.fotos).toEqual({});
+  expect(copia.repuestos.map((x) => x.name)).toContain("Bujía antigua");
+
+  // un cambio después: en la misma semana no se hace otra copia
+  await a.click('[data-tab="stock"]');
+  await a.click("#fab");
+  await a.fill("#p_name", "Bujía nueva");
+  await a.click("#savePart");
+  await a.waitForTimeout(4500);
+  await expect(a.locator("#syncState")).toHaveText("Sincronizado");
+  expect(copias()).toHaveLength(1);
+
+  // volver a la copia: «Bujía nueva» desaparece aquí y también en el servidor
+  await a.click("#menuBtn");
+  await a.click("#syncBtn");
+  await a.click("#copiesBtn");
+  await a.click("[data-copy]");
+  await a.click("#yes");
+  await expect(a.locator("#toast")).toHaveText("Copia restaurada");
+  await a.click('[data-tab="stock"]');
+  await expect(a.locator(".row", { hasText: "Bujía antigua" })).toHaveCount(1);
+  await expect(a.locator(".row", { hasText: "Bujía nueva" })).toHaveCount(0);
+  await expect.poll(() => {
+    const d = JSON.parse(Buffer.from(gh.files["garaje.json"].content, "base64").toString());
+    return d.stores.parts.filter((x) => !x.deleted).map((x) => x.name).sort();
+  }).toEqual(["Bujía antigua"]);
+});

@@ -342,16 +342,24 @@
     return d >= BACKUP_DAYS ? `Hace ${d} días que no guardas una copia de tus datos.` : null;
   }
   const blobToData = (b) => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
-  async function exportBackup() {
-    toast("Preparando la copia…");
+  // Identificadores de todas las fotos y documentos que usan los datos
+  function fileIds() {
     const ids = new Set();
     S.cars.forEach(c => { if (c.photoId) ids.add(c.photoId); (c.gallery || []).forEach(i => ids.add(i)); });
     S.parts.forEach(p => p.photoId && ids.add(p.photoId));
     S.docs.forEach(d => d.fileId && ids.add(d.fileId));
     S.maps.forEach(m => m.photoId && ids.add(m.photoId));
+    return ids;
+  }
+  // Copia completa (con las fotos dentro) o ligera para el servidor (las fotos ya están en «archivos»)
+  async function backupData(withFiles = true) {
     const files = {};
-    for (const id of ids) { const b = await getBlob(id); if (b) files[id] = await blobToData(b); }
-    const json = JSON.stringify({ app: "garaje-clasico", version: 2, exportado: new Date().toISOString(), coches: await idbAll("cars"), repuestos: S.parts, despiecePropio: localCat, registros: S.logs, documentos: S.docs, compra: S.shop, salidas: S.trips, mapas: S.maps, fotos: files });
+    if (withFiles) for (const id of fileIds()) { const b = await getBlob(id); if (b) files[id] = await blobToData(b); }
+    return { app: "garaje-clasico", version: 2, exportado: new Date().toISOString(), ...(withFiles ? {} : { fotosEnServidor: true }), coches: await idbAll("cars"), repuestos: S.parts, despiecePropio: localCat, registros: S.logs, documentos: S.docs, compra: S.shop, salidas: S.trips, mapas: S.maps, fotos: files };
+  }
+  async function exportBackup() {
+    toast("Preparando la copia…");
+    const json = JSON.stringify(await backupData());
     const name = "garaje-clasico-" + today() + ".json";
     const file = new File([json], name, { type: "application/json" });
     const done = () => { lsSet("lastBackup", new Date().toISOString()); lsSet("backupSnooze", ""); render(); toast("Copia guardada"); };
@@ -364,9 +372,14 @@
   }
   async function importBackup(file) {
     try {
-      const d = JSON.parse(await file.text());
-      if (d.app !== "garaje-clasico") throw new Error("formato");
-      for (const n of [...STORES, "photos"]) await idbClear(n);
+      const d = file instanceof Blob ? JSON.parse(await file.text()) : file;
+      if (d?.app !== "garaje-clasico") throw new Error("formato");
+      // Con la sincronización activa, la copia restaurada tiene que ganar a lo que haya en el servidor:
+      // se marca como recién guardada y lo que no estaba en la copia se borra también en el otro móvil
+      const before = {};
+      if (syncCfg()) for (const n of STORES) before[n] = await idbAll(n);
+      // Las copias del servidor no llevan las fotos dentro: se dejan las del móvil y se bajan las que falten
+      for (const n of d.fotosEnServidor ? STORES : [...STORES, "photos"]) await idbClear(n);
       for (const c of d.coches || []) await idbPut("cars", c);
       for (const p of d.repuestos || []) await idbPut("parts", p);
       for (const k of d.despiecePropio || []) await idbPut("catalog", k);
@@ -376,8 +389,18 @@
       for (const x of d.salidas || []) await idbPut("trips", x);
       for (const x of d.mapas || []) await idbPut("maps", x);
       for (const [id, url] of Object.entries(d.fotos || {})) await idbPut("photos", await (await fetch(url)).blob(), id);
+      if (syncCfg()) {
+        const now = new Date().toISOString();
+        for (const n of STORES) {
+          const kept = await idbAll(n), ids = new Set(kept.map(x => x.id));
+          for (const x of kept) await idbPut(n, { ...x, updatedAt: now });
+          // las piezas del despiece publicado modificadas (libId) no se pueden borrar sin ocultar la pieza original
+          for (const x of before[n]) if (!ids.has(x.id) && !x.deleted && !x.libId) await idbPut(n, { id: x.id, deleted: true, updatedAt: now });
+        }
+      }
       photoCache.clear(); photoPending.clear(); await loadAll(); closeSheet(); render();
       toast("Copia restaurada");
+      if (syncCfg()) syncNow();
     } catch { toast("Ese archivo no es una copia de Garaje Clásico"); }
   }
 
@@ -450,6 +473,7 @@
       }
       if (!done) throw new Error("El otro móvil está guardando a la vez. Se reintentará.");
       await syncFiles();
+      await weeklyCopy().catch(() => {}); // si falla la copia, los datos ya están sincronizados: se reintenta la próxima vez
       lsSet("lastSync", new Date().toISOString());
       if (lsGet("syncAuthFail")) lsSet("syncAuthFail", "");
       setSyncState("Sincronizado"); render();
@@ -465,11 +489,7 @@
   }
   // Fotos y documentos: cada archivo se guarda una vez en la carpeta «archivos» del repositorio
   async function syncFiles() {
-    const ids = new Set();
-    S.cars.forEach(c => { if (c.photoId) ids.add(c.photoId); (c.gallery || []).forEach(i => ids.add(i)); });
-    S.parts.forEach(p => p.photoId && ids.add(p.photoId));
-    S.docs.forEach(d => d.fileId && ids.add(d.fileId));
-    S.maps.forEach(m => m.photoId && ids.add(m.photoId));
+    const ids = fileIds();
     if (!ids.size) return;
     const r = await gh("contents/archivos");
     const remote = r.ok ? new Set((await r.json()).map(f => f.name)) : new Set();
@@ -486,6 +506,41 @@
         photoPending.delete(id); render();
       }
     }
+  }
+  // Copia semanal en la carpeta «copias» del repositorio: la hace el primer móvil que sincroniza pasada la semana
+  const COPY_DAYS = 7;
+  async function serverCopies() {
+    const r = await gh("contents/copias");
+    if (r.status === 404) return [];
+    if (!r.ok) throw ghFail(r);
+    return (await r.json()).map(f => f.name).filter(n => /^garaje-\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort().reverse();
+  }
+  async function weeklyCopy() {
+    const last = lsGet("lastServerCopy");
+    if (last && -daysUntil(last) < COPY_DAYS) return;
+    const names = await serverCopies(), newest = names[0]?.slice(7, 17);
+    if (newest && -daysUntil(newest) < COPY_DAYS) { lsSet("lastServerCopy", newest); return; }
+    const day = today(), body = { message: "Copia semanal " + day, content: b64encode(JSON.stringify(await backupData(false))) };
+    const r = await gh("contents/copias/garaje-" + day + ".json", { method: "PUT", body: JSON.stringify(body) });
+    if (!r.ok && r.status !== 422) throw ghFail(r); // 422: el otro móvil la acaba de hacer hoy
+    lsSet("lastServerCopy", day);
+  }
+  async function copiesSheet() {
+    openSheet(`<h2>Copias en GitHub</h2><p class="lead">Cargando…</p>`);
+    let names;
+    try { names = await serverCopies(); } catch (e) { openSheet(`<h2>Copias en GitHub</h2><p class="lead">${esc(e.message || "No hay conexión con GitHub")}</p><div class="actions"><button class="btn" type="button" data-close>Cerrar</button></div>`); return; }
+    openSheet(`<h2>Copias en GitHub</h2>
+      <p class="lead">${names.length ? "Cada semana se guarda una copia de los datos. Elige una para volver a como estaba ese día." : "Todavía no hay ninguna. La primera se hace al sincronizar."}</p>
+      <div class="actions" style="flex-direction:column">${names.map(n => `<button class="btn" type="button" data-copy="${esc(n)}">Copia del ${esc(fmtDate(n.slice(7, 17)))}</button>`).join("")}
+      <button class="btn" type="button" data-close>Cerrar</button></div>`);
+    document.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", () => {
+      const n = b.dataset.copy;
+      confirmSheet("¿Volver a la copia del " + fmtDate(n.slice(7, 17)) + "?", "Se sustituyen los datos de este móvil y del otro por los de esa copia. Lo guardado después se pierde.", async () => {
+        const r = await gh("contents/copias/" + encodeURIComponent(n), { raw: true }).catch(() => null);
+        if (!r?.ok) { toast("No se pudo descargar la copia"); return; }
+        try { await importBackup(JSON.parse(await r.text())); } catch { toast("La copia está dañada"); }
+      });
+    }));
   }
   async function connectSync(cfg) {
     if (!/^[\w.-]+\/[\w.-]+$/.test(cfg.repo || "")) { toast("Escribe el repositorio como usuario/nombre"); return false; }
@@ -561,6 +616,7 @@
       <div class="actions" style="flex-direction:column">
         <button class="btn primary" type="button" id="syncNowBtn">Sincronizar ahora</button>
         <button class="btn" type="button" id="syncLink">Enlace para el otro móvil</button>
+        <button class="btn" type="button" id="copiesBtn">Copias semanales en GitHub</button>
         <button class="btn" type="button" id="renewBtn">Renovar el token</button>
         <button class="btn danger" type="button" id="syncOff">Desconectar este móvil</button>
       </div>
@@ -568,6 +624,7 @@
     $("#syncNowBtn").onclick = () => syncNow(true);
     $("#syncLink").onclick = () => linkSheet(syncCfg());
     $("#renewBtn").onclick = renewSheet;
+    $("#copiesBtn").onclick = copiesSheet;
     $("#saveExp").onclick = () => { lsSet("syncCfg", JSON.stringify({ ...syncCfg(), expires: $("#y_exp2").value })); render(); syncSheet(); toast("Fecha guardada"); };
     $("#syncOff").onclick = () => confirmSheet("¿Desconectar este móvil?", "Los datos se quedan en este teléfono y en GitHub, pero dejan de sincronizarse.", async () => { lsSet("syncCfg", ""); setSyncState("En este teléfono"); closeSheet(); toast("Desconectado"); });
   }

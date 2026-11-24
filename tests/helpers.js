@@ -24,8 +24,8 @@ function fakeGitHub() {
     const p = m[1] && decodeURIComponent(m[1]);
     if (!p) return route.fulfill({ headers: h, body: JSON.stringify({ private: true, permissions: { push: true } }) });
     if (req.method() === "GET") {
-      if (p === "archivos") {
-        const list = Object.keys(files).filter((k) => k.startsWith("archivos/")).map((k) => ({ name: k.slice(9) }));
+      if (p === "archivos" || p === "copias") {
+        const list = Object.keys(files).filter((k) => k.startsWith(p + "/")).map((k) => ({ name: k.slice(p.length + 1) }));
         return route.fulfill({ status: list.length ? 200 : 404, headers: h, body: JSON.stringify(list) });
       }
       const f = files[p];
@@ -35,6 +35,7 @@ function fakeGitHub() {
     }
     if (req.method() === "PUT") {
       const b = JSON.parse(req.postData()), f = files[p];
+      if (f && !b.sha) return route.fulfill({ status: 422, headers: h, body: "{}" }); // como GitHub: ya existe y no se dio sha
       if (f && b.sha !== f.sha) return route.fulfill({ status: 409, headers: h, body: "{}" });
       files[p] = { sha: "s" + ++sha, content: b.content };
       return route.fulfill({ status: 201, headers: h, body: "{}" });

@@ -49,8 +49,8 @@ El archivo está dividido en secciones con comentarios `// ---------- Nombre ---
 | Fotos y archivos | `blobUrl`, `storeImage` (reduce la foto), `dropBlob` |
 | Datos (IndexedDB) | `idb`, `loadAll`, `save`, `remove`, `seedGarage`, `loadLibrary`, `mergeCatalog` |
 | Mantenimiento y avisos | `taskList`, `taskStatus`, `alertsFor`, `allAlerts`, vehículo parado (`idleStatus`, `markRun`), `tripStats` |
-| Copia de seguridad | `exportBackup`, `importBackup`, `backupNeeded` |
-| Sincronización | `gh`, `getRemote`, `mergeSets`, `syncNow`, `syncFiles`, `connectSync`, `syncSheet`, caducidad del token (`tokenStatus`, `renewSheet`, `linkSheet`) |
+| Copia de seguridad | `fileIds`, `backupData`, `exportBackup`, `importBackup` (con sincronización, lo restaurado gana: se marca con la hora y lo que falta se borra), `backupNeeded` |
+| Sincronización | `gh`, `getRemote`, `mergeSets`, `syncNow`, `syncFiles`, `connectSync`, `syncSheet`, copia semanal (`weeklyCopy`, `serverCopies`, `copiesSheet`), caducidad del token (`tokenStatus`, `renewSheet`, `linkSheet`) |
 | Calendario | `calendarEvents`, `buildICS`, `calendarSheet` |
 | Datos rápidos | `QUICK`, `quickCard`, `quickForm` |
 | Lector de códigos | `scanCode`, `decodeImage`, `scanToStock` |
