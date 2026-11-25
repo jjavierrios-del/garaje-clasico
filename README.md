@@ -16,6 +16,7 @@ App para el móvil para llevar una colección de coches clásicos: la ficha de c
 - **Copia de seguridad:** aviso cada 30 días para guardar una copia.
 - **Compartir entre móviles:** sincroniza datos, fotos y documentos a través de un repositorio **privado** de GitHub (Opciones → Compartir entre móviles). Avisa un mes antes de que caduque el token y tiene un asistente para renovarlo.
 - **Copia semanal en GitHub:** con la sincronización activa, cada semana se guarda sola una copia de los datos en la carpeta `copias/` del repositorio privado (sin duplicar las fotos, que ya están en `archivos/`). Desde Opciones → Compartir entre móviles → «Copias semanales en GitHub» se puede volver a cualquiera; la vuelta llega también al otro móvil.
+- **Avisos al móvil:** Opciones → «Avisos en este móvil» (necesita «Compartir entre móviles»). A las 10:00 llega como mucho una notificación al día con lo que toca: ITV, seguro e impuesto (30 días antes, 7 días antes y el mismo día), mantenimientos por fecha, por km (al día siguiente de apuntarlos), vehículos parados y caducidad del token. Lo pendiente se recuerda los lunes. Al tocarla se abre el vehículo. El servicio es un Worker de Cloudflare (`avisos/worker.mjs`) que no guarda los datos del garaje.
 - **Calendario:** exporta ITV, seguro, impuesto y mantenimientos al calendario del móvil, con aviso 7 días antes.
 - **Datos rápidos:** aceite, capacidades, neumáticos, batería y bujías de cada vehículo.
 - **Tamaño de letra:** normal, grande o muy grande (Opciones).

@@ -30,7 +30,8 @@ Sin frameworks ni compilación: HTML, CSS y JavaScript tal cual, servidos por Gi
 | `index.html` | Esqueleto: iconos SVG (`<symbol id="i-…">`), cabecera, `#view`, barra de pestañas, hoja inferior (`#sheet`), escáner y `#toast`. |
 | `app.js` | Toda la lógica (≈2000 líneas, una sola función autoejecutable). |
 | `styles.css` | Estilos. Variables de color en `:root` con tema oscuro por defecto y claro; tamaños en `rem` (letra grande = `data-text` en `<html>`); bloque `@media print` para la ficha PDF y las etiquetas QR. |
-| `sw.js` | Service worker: red primero, caché si no hay conexión. |
+| `sw.js` | Service worker: red primero, caché si no hay conexión. Recibe los avisos (`push`: pide el texto del día a `/hoy`) y abre el vehículo al tocarlos. |
+| `avisos/worker.mjs` | Worker de Cloudflare `avisos-garaje` (ver más abajo). |
 | `manifest.webmanifest`, `icons/` | Instalación como app. |
 | `datos/garaje.json` | Los 9 vehículos de la colección (repositorio **público**: incluye bastidores y matrículas, decidido así). La app añade los que falten sin pisar cambios del móvil. |
 | `catalog/` | Despieces de referencia por modelo (`index.json` + un JSON por modelo). |
@@ -50,7 +51,7 @@ El archivo está dividido en secciones con comentarios `// ---------- Nombre ---
 | Datos (IndexedDB) | `idb`, `loadAll`, `save`, `remove`, `seedGarage`, `loadLibrary`, `mergeCatalog` |
 | Mantenimiento y avisos | `taskList`, `taskStatus`, `alertsFor`, `allAlerts`, vehículo parado (`idleStatus`, `markRun`), `tripStats` |
 | Copia de seguridad | `fileIds`, `backupData`, `exportBackup`, `importBackup` (con sincronización, lo restaurado gana: se marca con la hora y lo que falta se borra), `backupNeeded` |
-| Sincronización | `gh`, `getRemote`, `mergeSets`, `syncNow`, `syncFiles`, `connectSync`, `syncSheet`, copia semanal (`weeklyCopy`, `serverCopies`, `copiesSheet`), caducidad del token (`tokenStatus`, `renewSheet`, `linkSheet`) |
+| Sincronización | `gh`, `getRemote`, `mergeSets`, `syncNow`, `syncFiles`, `connectSync`, `syncSheet`, copia semanal (`weeklyCopy`, `serverCopies`, `copiesSheet`), avisos al móvil (`pushPlan` calcula fecha, clave y texto de cada aviso; `pushSend`, `pushSheet`, `pushOff`), caducidad del token (`tokenStatus`, `renewSheet`, `linkSheet`) |
 | Calendario | `calendarEvents`, `buildICS`, `calendarSheet` |
 | Datos rápidos | `QUICK`, `quickCard`, `quickForm` |
 | Lector de códigos | `scanCode`, `decodeImage`, `scanToStock` |
@@ -102,3 +103,12 @@ Al cambiar algo, añade o ajusta su prueba. Un detalle de Playwright: `setInputF
 ## Ideas pendientes (comentadas, no hechas)
 
 Gastos por vehículo, lista antes de salir, guardar para el invierno, caducidades del almacén, contactos, valor y seguro, quién hizo cada cambio, exportar a Excel, el libro de cada coche (historia y anécdotas), antes/después, atajos en el icono, modo taller, conversor de medidas. Faltan las fotos del W204, la CBF600, el E36 y el SEAT 124.
+
+## Avisos al móvil (Cloudflare)
+
+`avisos/worker.mjs` es el Worker `avisos-garaje.jjavierrios.workers.dev`. Cloudflare no lee del repositorio: si se cambia, hay que desplegarlo aparte.
+
+- **Rutas:** `POST /registro` (suscripción + lista de avisos; comprueba con el token de GitHub de la app que tiene acceso a `REPO`, y no lo guarda), `DELETE /registro` (baja), `GET /hoy?id=` (texto del día para el móvil), `/estado`.
+- **Temporizadores:** `0 8 * * *` y `0 9 * * *` UTC; solo actúa el que cae a las 10:00 de Madrid. Manda un toque sin contenido por móvil y apunta las claves enviadas para no repetirlas.
+- **Configuración** (`avisos/wrangler.toml`, local y fuera de git): KV `AVISOS`, variable `REPO = "jjavierrios-del/garaje-datos"`, secreto `VAPID_PRIVADA` (JWK; la clave pública está en `app.js` como `VAPID_PUBLICA`). La clave privada se guarda en `avisos/vapid-privada.json`, también fuera de git.
+- **Desplegar:** `cd avisos && wrangler deploy`. Pruebas sin navegador en `tests/avisos-worker.spec.js`.

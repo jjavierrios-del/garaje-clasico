@@ -474,6 +474,7 @@
       if (!done) throw new Error("El otro móvil está guardando a la vez. Se reintentará.");
       await syncFiles();
       await weeklyCopy().catch(() => {}); // si falla la copia, los datos ya están sincronizados: se reintenta la próxima vez
+      if (pushOn()) pushSend().catch(() => {});
       lsSet("lastSync", new Date().toISOString());
       if (lsGet("syncAuthFail")) lsSet("syncAuthFail", "");
       setSyncState("Sincronizado"); render();
@@ -541,6 +542,118 @@
         try { await importBackup(JSON.parse(await r.text())); } catch { toast("La copia está dañada"); }
       });
     }));
+  }
+  // ---------- Avisos al móvil ----------
+  // El móvil calcula los avisos de los próximos meses y se los manda al servicio «avisos-garaje»
+  // (Cloudflare). Cada mañana a las 10:00 llega una sola notificación con lo que toca ese día.
+  // Hace falta la sincronización: el servicio solo admite a quien tiene acceso a ese repositorio.
+  const AVISOS_URL = "https://avisos-garaje.jjavierrios.workers.dev";
+  const VAPID_PUBLICA = "BDd6hROmycAlTxTrZhLGnLTfES-LnT1wNnW85nRJPgor2fUUnAbPXHAxq6EZK3kHqwqT6cwa4x2F_Mq13cTQFl4";
+  const PUSH_WEEKS = 12, PUSH_DAYS = 400, PUSH_MAX = 400;
+  const addDays = (d, n) => { const x = atNoon(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+  const pushOn = () => lsGet("pushOn") === "1";
+  const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  function pushPlan() {
+    const t = today(), end = addDays(t, PUSH_DAYS), out = [];
+    const add = (dia, clave, texto, car) => { if (dia >= t && dia <= end) out.push({ dia, clave, texto, coche: car?.id || "" }); };
+    // Lo pendiente se recuerda los lunes (día fijo: aunque se abra la app a diario, no se retrasa)
+    let mon = t; while (atNoon(mon).getDay() !== 1) mon = addDays(mon, 1);
+    const mondays = Array.from({ length: PUSH_WEEKS }, (_, i) => addDays(mon, 7 * i));
+    const weekly = (after, clave, texto, car) => mondays.filter(m => m > after).forEach(m => add(m, clave + ":" + m, texto, car));
+    for (const car of S.cars) {
+      const name = carName(car);
+      DATE_FIELDS.forEach(([f, label]) => {
+        const v = car[f]; if (!v) return;
+        [[30, "vence en 30 días"], [7, "vence en 7 días"], [0, "vence hoy"]].forEach(([n, txt]) => add(addDays(v, -n), `${f}:${car.id}:${v}:${n}`, `${label} del ${name}: ${txt}`, car));
+        weekly(v, `${f}:${car.id}:${v}:pend`, `${label} del ${name}: venció el ${fmtDate(v)}`, car);
+      });
+      taskList(car).filter(k => !k.off).forEach(k => {
+        const s = taskStatus(car, k);
+        if (s.state === "none") return;
+        if (s.dueDate) {
+          add(s.dueDate, `tarea:${car.id}:${k.k}:${s.dueDate}`, `${name}: toca ${k.name.toLowerCase()}`, car);
+          weekly(s.dueDate, `tarea:${car.id}:${k.k}:${s.dueDate}:pend`, `${name}: ${k.name.toLowerCase()} pendiente desde el ${fmtDate(s.dueDate)}`, car);
+        }
+        // Por kilómetros no se sabe el día: se avisa al día siguiente de apuntar los km
+        if (s.kmLeft !== null && s.kmLeft !== undefined && s.kmLeft <= 1000 && !(s.days !== null && s.days < 0)) {
+          const tomorrow = addDays(t, 1), txt = `${name}: ${k.name.toLowerCase()} (${s.kmLeft < 0 ? "pasado " + kmFmt(-s.kmLeft) : "quedan " + kmFmt(s.kmLeft)})`;
+          add(tomorrow, `tarea:${car.id}:${k.k}:km${s.dueKm}`, txt, car);
+          if (s.kmLeft < 0) weekly(tomorrow, `tarea:${car.id}:${k.k}:km${s.dueKm}:pend`, txt, car);
+        }
+      });
+      const limit = idleDays(car), last = lastRun(car);
+      if (limit && last) {
+        const due = addDays(last, limit);
+        add(due, `parado:${car.id}:${last}`, `${name}: lleva ${limit} días sin arrancar`, car);
+        weekly(due, `parado:${car.id}:${last}:pend`, `${name}: sin arrancar desde el ${fmtDate(last)}`, car);
+      }
+    }
+    const exp = syncCfg()?.expires;
+    if (exp) {
+      add(addDays(exp, -30), `token:${exp}:30`, "El token de la sincronización caduca en 30 días: renuévalo en Opciones", null);
+      add(exp, `token:${exp}:0`, "El token de la sincronización caduca hoy: renuévalo en Opciones", null);
+    }
+    return out.sort((a, b) => a.dia.localeCompare(b.dia)).slice(0, PUSH_MAX);
+  }
+  const keyBytes = (t) => { const b = atob(t.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((t.length + 3) % 4)); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  async function pushSub(create) {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub && create) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLICA) });
+    return sub;
+  }
+  const quickHash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
+  // Manda la lista al servicio si ha cambiado o si hace más de 3 días (para alargar los recordatorios semanales)
+  async function pushSend(force = false, sub = null) {
+    const cfg = syncCfg();
+    if (!cfg || !navigator.onLine) return;
+    sub ||= await pushSub(false);
+    if (!sub) { lsSet("pushOn", ""); return; }
+    const avisos = pushPlan(), sig = quickHash(sub.endpoint + JSON.stringify(avisos));
+    if (!force && lsGet("pushSig") === sig && Date.now() - new Date(lsGet("pushSent") || 0) < 3 * 86400000) return;
+    const r = await fetch(AVISOS_URL + "/registro", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo: cfg.repo, token: cfg.token, sub: sub.toJSON(), avisos }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "El servicio de avisos no responde");
+    lsSet("pushSig", sig); lsSet("pushSent", new Date().toISOString());
+  }
+  // Se borra del servicio y del móvil (si no hay conexión, el servicio lo olvida al fallar el envío)
+  async function pushOff() {
+    try {
+      const sub = await pushSub(false), cfg = syncCfg();
+      if (sub) {
+        if (cfg) await fetch(AVISOS_URL + "/registro", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo: cfg.repo, token: cfg.token, sub: sub.toJSON() }) }).catch(() => {});
+        await sub.unsubscribe();
+      }
+    } catch {}
+    lsSet("pushOn", ""); lsSet("pushSig", "");
+  }
+  function pushSheet() {
+    const head = `<h2>Avisos en este móvil</h2>`;
+    if (!pushSupported()) { openSheet(`${head}<p class="lead">Este móvil o navegador no admite avisos. En iPhone, primero instala la app: Compartir → «Añadir a pantalla de inicio», y ábrela desde ahí.</p><div class="actions"><button class="btn" type="button" data-close>Cerrar</button></div>`); return; }
+    if (!syncCfg()) { openSheet(`${head}<p class="lead">Para recibir avisos, primero conecta «Compartir entre móviles» en Opciones.</p><div class="actions"><button class="btn primary" type="button" id="pushSync">Compartir entre móviles</button><button class="btn" type="button" data-close>Cerrar</button></div>`); $("#pushSync").onclick = syncSheet; return; }
+    if (pushOn()) {
+      const next = pushPlan().slice(0, 5);
+      openSheet(`${head}<p class="lead">Activados. Cada mañana a las 10:00 te llega una notificación si hay algo: ITV, seguro, impuesto, mantenimientos y vehículos parados. Lo que siga pendiente se recuerda los lunes.</p>
+        ${next.length ? `<p class="eyebrow">Próximos avisos</p><ul class="steps">${next.map(a => `<li><b>${esc(fmtDate(a.dia))}</b> · ${esc(a.texto)}</li>`).join("")}</ul>` : `<p class="note">Ahora mismo no hay nada previsto.</p>`}
+        <div class="actions"><button class="btn danger" type="button" id="pushOff">Desactivar los avisos</button><button class="btn" type="button" data-close>Cerrar</button></div>`);
+      $("#pushOff").onclick = async () => {
+        await pushOff();
+        closeSheet(); toast("Avisos desactivados"); render();
+      };
+      return;
+    }
+    openSheet(`${head}<p class="lead">Te llegará una notificación a las 10:00 cuando toque algo: la ITV, el seguro o el impuesto (30 días antes, 7 días antes y el mismo día), los mantenimientos y los vehículos que lleven tiempo parados. Como mucho, una al día.</p>
+      <div class="actions"><button class="btn primary" type="button" id="pushGo">Activar los avisos</button><button class="btn" type="button" data-close>Cancelar</button></div>
+      <p class="note">Al pulsar, el móvil te preguntará si permites notificaciones: elige «Permitir».</p>`);
+    $("#pushGo").onclick = async () => {
+      $("#pushGo").disabled = true;
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") { toast("Sin permiso no puedo mandar avisos. Actívalo en los ajustes del navegador."); $("#pushGo").disabled = false; return; }
+        const sub = await pushSub(true);
+        await pushSend(true, sub);
+        lsSet("pushOn", "1"); closeSheet(); toast("Avisos activados"); render();
+      } catch (e) { toast(e.message || "No se pudieron activar los avisos"); if ($("#pushGo")) $("#pushGo").disabled = false; }
+    };
   }
   async function connectSync(cfg) {
     if (!/^[\w.-]+\/[\w.-]+$/.test(cfg.repo || "")) { toast("Escribe el repositorio como usuario/nombre"); return false; }
@@ -626,7 +739,10 @@
     $("#renewBtn").onclick = renewSheet;
     $("#copiesBtn").onclick = copiesSheet;
     $("#saveExp").onclick = () => { lsSet("syncCfg", JSON.stringify({ ...syncCfg(), expires: $("#y_exp2").value })); render(); syncSheet(); toast("Fecha guardada"); };
-    $("#syncOff").onclick = () => confirmSheet("¿Desconectar este móvil?", "Los datos se quedan en este teléfono y en GitHub, pero dejan de sincronizarse.", async () => { lsSet("syncCfg", ""); setSyncState("En este teléfono"); closeSheet(); toast("Desconectado"); });
+    $("#syncOff").onclick = () => confirmSheet("¿Desconectar este móvil?", "Los datos se quedan en este teléfono y en GitHub, pero dejan de sincronizarse.", async () => {
+      // sin sincronización los avisos se quedarían sin poner al día: se desactivan también
+      if (pushOn()) await pushOff();
+      lsSet("syncCfg", ""); setSyncState("En este teléfono"); closeSheet(); toast("Desconectado"); });
   }
 
   // ---------- Avisos en el calendario del móvil ----------
@@ -1474,6 +1590,13 @@
 
   // Enlace de alta: #importar=<json en base64url>. El fragmento nunca llega al servidor.
   async function importFromLink(text = location.hash) {
+    // Al tocar una notificación de un solo vehículo se abre su ficha
+    const cm = String(text).match(/#coche=([\w-]+)/);
+    if (cm) {
+      if (location.hash) history.replaceState(history.state, "", location.pathname + location.search);
+      if (carById(cm[1])) { closeSheet(); S.tab = "car"; S.carId = cm[1]; S.carTab = "maint"; render(); scrollTo({ top: 0 }); }
+      return;
+    }
     const place = placeFromCode(text);
     if (place) { if (location.hash) history.replaceState(history.state, "", location.pathname + location.search); placeSheet(place); return; }
     const sm = String(text).match(/#sync=([A-Za-z0-9_-]+)/);
@@ -1545,6 +1668,7 @@
         <button class="btn primary" type="button" id="exportBtn"><svg><use href="#i-down"/></svg>Hacer copia de seguridad</button>
         <button class="btn" type="button" id="importBtn">Restaurar una copia</button>
         <button class="btn" type="button" id="syncBtn">Compartir entre móviles${syncCfg() ? " · conectado" : ""}</button>
+        <button class="btn" type="button" id="pushBtn">Avisos en este móvil${pushOn() ? " · activados" : ""}</button>
         <button class="btn" type="button" id="pasteBtn">Pegar enlace</button>
         <input type="file" id="importFile" hidden>
         <button class="btn" type="button" id="guideBtn">Cómo se usa la app</button>
@@ -1555,6 +1679,7 @@
       <p class="note">Despieces disponibles: ${libIndex.length ? libIndex.map(l => esc(l.title)).join(", ") : "ninguno todavía"}.</p>`);
     $("#exportBtn").addEventListener("click", exportBackup);
     $("#syncBtn").addEventListener("click", syncSheet);
+    $("#pushBtn").addEventListener("click", pushSheet);
     $("#guideBtn").addEventListener("click", () => showGuide(0));
     document.querySelectorAll("[data-text-size]").forEach(b => b.addEventListener("click", () => {
       setTextSize(b.dataset.textSize);
